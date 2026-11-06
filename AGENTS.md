@@ -2,6 +2,7 @@
 
 ## Context by task
 
+- Before implementation, read the [common backend conventions](https://github.com/pipesor-org/pipesor-docs/blob/main/docs/development/backend-conventions.md). Use the accessible pipesor-docs checkout when available, distinguishing local changes from integrated main. Apply only the conventions relevant to this service; they do not add tables, integrations or permissions.
 - Use [README.md](README.md#development-and-verification) for setup, runnable commands and contribution policies. Add verified commands there when introducing application tooling; reference them rather than maintaining a second command list here.
 - For retrieval behavior, corpus eligibility or provenance changes, consult [architecture](docs/architecture.md) and its current knowledge-scope model and invariants. Read ADR-015 for the boundary with diagnosis orchestration and ADR-019 for the managed AI foundation. Follow references for the affected subject, not the entire documentation set for every edit.
 - For Python dependency selection, vector compatibility, persistence or delivery work, consult the relevant sections of the [deployment contract](docs/deployment-contract.md). Its development baseline records the authorized version-selection policy; its configuration and data sections identify embedding, corpus and ownership requirements.
