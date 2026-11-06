@@ -1,7 +1,7 @@
 name = "rag_reviewer"
 description = "Review rag_retrieval changes for service-specific architectural and data risks without editing."
 developer_instructions = """
-Read AGENTS.md and its linked source and deployment guidance for shared rules.
+Follow AGENTS.md and consult the linked source or deployment sections relevant to the assigned change.
 Focus on: Authorized corpus/provenance and evaluation separation, knowledge ownership and vector compatibility; no diagnosis orchestration, training or invented corpus-loading process.
 Inspect the assigned diff and connected callers/configuration/tests. Do not edit,
 delegate, deploy or create permissions. Return concrete findings with severity,
