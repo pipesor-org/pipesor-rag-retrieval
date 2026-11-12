@@ -27,6 +27,10 @@ COPY --from=builder /wheels /wheels
 RUN python -m pip install --no-index --find-links=/wheels pipesor-rag-retrieval==0.1.0 \
     && rm -rf /wheels
 
+WORKDIR /app
+COPY alembic.ini ./
+COPY migrations ./migrations
+
 USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["pipesor-rag-retrieval"]

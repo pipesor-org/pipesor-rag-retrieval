@@ -18,6 +18,14 @@ consumption or deployment.
 - This increment selects no real corpus loader, PostgreSQL vector dimension, Azure
   SDK/model, Entra grant or cloud resource.
 
+The PostgreSQL foundation added after the initial API owns Alembic migrations for
+`knowledge.knowledge_documents` and `knowledge.knowledge_chunks`. It adds explicit
+tenant/installation/repository/pipeline/revision scope columns, an internal document
+foreign key and a scope index. It neither creates the database-level `vector`
+extension nor creates a vector index. Runtime selection is explicit through
+`PIPESOR_RAG_STORAGE_BACKEND`; PostgreSQL additionally requires a secret database
+URL and a separately authorized Entra-compatible access path.
+
 **Status: local implementation foundation; not approved for IaC consumption or deployment.** Prepared for PD-035. [Architecture consumption](architecture.md) records the consulted source revision `c84ef3e4629fcb0c38315f32b641a5fb949e450d`, model IDs, applicable ADRs and committed PD-033–036. ADR-019 governs the current MVP alignment.
 
 **Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. This increment adds local application code and an image definition, but no published image, credentials or migrations. IaC contains infrastructure preparation; provisioning is not evidenced here.

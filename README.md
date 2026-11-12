@@ -24,6 +24,7 @@ python -m venv .venv
 python -m pip install -e ".[dev]"
 python -m pytest
 python -m compileall -q src tests tools
+alembic upgrade head --sql
 python -m pipesor_rag_retrieval.main
 ```
 
@@ -43,6 +44,20 @@ The internal endpoint is `POST /internal/v1/retrieval/query`. It accepts contrac
 version `1.0`, a correlation ID, query, authorization scope, permitted corpus kinds
 and `top_k`. No match is a successful response with `status: no_match` and an empty
 list. Results always include document/chunk identifiers and provenance.
+
+`PIPESOR_RAG_STORAGE_BACKEND=postgresql` selects the bounded PostgreSQL adapter
+and requires `PIPESOR_RAG_DATABASE_URL`; the value is treated as a secret and must
+not be logged. `PIPESOR_RAG_CANDIDATE_LIMIT` defaults to 1000. The Alembic migration
+owns only the `knowledge` schema and requires the database administrator to enable
+the `vector` extension first. Apply it only through an authorized migration path:
+
+```bash
+PIPESOR_RAG_DATABASE_URL='<approved Entra-compatible URL>' alembic upgrade head
+```
+
+The current adapter filters by authorization scope before loading a bounded set of
+vectors. It deliberately creates no vector index; production semantic search remains
+blocked on the approved embedding model and dimension.
 
 Check affected links and consistency with the referenced sources, then run:
 
