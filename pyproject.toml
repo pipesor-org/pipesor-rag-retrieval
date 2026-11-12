@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pipesor-rag-retrieval"
+version = "0.1.0"
+description = "Authorized contextual knowledge retrieval for Pipesor."
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  "fastapi==0.162.4",
+  "pydantic==2.14.0",
+  "uvicorn==0.54.0",
+]
+
+[project.scripts]
+pipesor-rag-retrieval = "pipesor_rag_retrieval.main:main"
+
+[project.optional-dependencies]
+dev = [
+  "httpx==0.28.1",
+  "pip-audit==2.10.1",
+  "pytest==9.2.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pipesor_rag_retrieval"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
