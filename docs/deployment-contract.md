@@ -1,8 +1,26 @@
 # Deployment contract: rag_retrieval
 
-**Status: readiness record; not approved for IaC consumption or deployment.** Prepared for PD-035. [Architecture consumption](architecture.md) records the consulted source revision `c84ef3e4629fcb0c38315f32b641a5fb949e450d`, model IDs, applicable ADRs and committed PD-033–036. ADR-019 governs the current MVP alignment.
+## Authorized first local increment
 
-**Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. No application images, endpoints, credentials or migrations are implemented in this service increment. IaC contains infrastructure preparation; provisioning is not evidenced here.
+The project owner authorized this local increment on 2026-11-11 with a versioned
+REST contract, scoped authorization and simulated authentication/embeddings,
+without real data or Azure resources. This authorization does not approve IaC
+consumption or deployment.
+
+- Internal route: `POST /internal/v1/retrieval/query`, contract version `1.0`.
+- Only `recommendation_service` is the intended caller.
+- Scope includes tenant, GitHub installation, repository, optional pipeline and
+  authorization revision, and is applied before results leave the service.
+- Results preserve document ID, chunk ID, corpus kind and provenance; `no_match`
+  remains distinct from validation, authorization and dependency failures.
+- Deterministic embeddings, in-memory knowledge and the caller header are local/test
+  adapters, not production security or semantic-search implementations.
+- This increment selects no real corpus loader, PostgreSQL vector dimension, Azure
+  SDK/model, Entra grant or cloud resource.
+
+**Status: local implementation foundation; not approved for IaC consumption or deployment.** Prepared for PD-035. [Architecture consumption](architecture.md) records the consulted source revision `c84ef3e4629fcb0c38315f32b641a5fb949e450d`, model IDs, applicable ADRs and committed PD-033–036. ADR-019 governs the current MVP alignment.
+
+**Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. This increment adds local application code and an image definition, but no published image, credentials or migrations. IaC contains infrastructure preparation; provisioning is not evidenced here.
 
 ## Identity and runtime
 
