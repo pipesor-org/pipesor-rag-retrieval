@@ -1,13 +1,14 @@
-import os
-
 import uvicorn
+
+from .configuration import Settings
 
 
 def main() -> None:
+    settings = Settings.from_environment()
     uvicorn.run(
         "pipesor_rag_retrieval.api:app",
-        host=os.getenv("PIPESOR_RAG_HOST", "0.0.0.0"),
-        port=int(os.getenv("PIPESOR_RAG_PORT", "8080")),
+        host=settings.host,
+        port=settings.port,
         access_log=False,
     )
 

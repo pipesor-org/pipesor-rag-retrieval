@@ -1,4 +1,6 @@
 **
 !pyproject.toml
 !src/**
+!alembic.ini
+!migrations/**
 

@@ -8,8 +8,12 @@ version = "0.1.0"
 description = "Authorized contextual knowledge retrieval for Pipesor."
 requires-python = ">=3.14,<3.15"
 dependencies = [
+  "alembic==1.20.1",
   "fastapi==0.162.4",
+  "pgvector==0.5.1",
+  "psycopg[binary]==3.3.8",
   "pydantic==2.14.0",
+  "SQLAlchemy==2.0.57",
   "uvicorn==0.54.0",
 ]
 

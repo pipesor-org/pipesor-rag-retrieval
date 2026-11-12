@@ -8,8 +8,9 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from .application import RetrievalQuery, RetrieveAuthorizedKnowledge
+from .bootstrap import build_retrieval_service
+from .configuration import Settings
 from .domain import AuthorizationScope, CorpusKind
-from .infrastructure import DeterministicEmbeddingProvider, InMemoryKnowledgeRepository
 
 SafeId = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")]
 PositiveExternalId = Annotated[str, StringConstraints(pattern=r"^[1-9][0-9]*$", max_length=32)]
@@ -72,9 +73,7 @@ def create_app(
     service: RetrieveAuthorizedKnowledge | None = None,
     authenticate: Callable[..., str] | None = None,
 ) -> FastAPI:
-    retrieval = service or RetrieveAuthorizedKnowledge(
-        InMemoryKnowledgeRepository(), DeterministicEmbeddingProvider()
-    )
+    retrieval = service or build_retrieval_service(Settings.from_environment())
     caller = authenticate or InternalCaller("recommendation_service")
     app = FastAPI(title="Pipesor RAG Retrieval", version="1.0.0", docs_url=None, redoc_url=None)
 
