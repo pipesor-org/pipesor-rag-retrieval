@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
@@ -19,6 +20,10 @@ class Settings(BaseModel):
     max_request_bytes: int = Field(default=65536, ge=1024, le=1048576)
     runtime_environment: Literal["local", "test", "dev", "qa", "prod"] = "local"
     authentication_mode: Literal["simulated", "entra"] = "simulated"
+    entra_tenant_id: UUID | None = None
+    entra_audience: UUID | None = None
+    entra_recommendation_client_id: UUID | None = None
+    entra_required_role: Literal["Rag.Query"] = "Rag.Query"
     embedding_backend: Literal["deterministic", "azure_openai"] = "deterministic"
     embedding_model: Literal["text-embedding-3-small"] = "text-embedding-3-small"
     embedding_model_version: str = Field(default="simulated-v1", min_length=1, max_length=128)
@@ -34,8 +39,10 @@ class Settings(BaseModel):
             raise ValueError("PIPESOR_RAG_DATABASE_URL is required for PostgreSQL storage")
         if self.runtime_environment not in {"local", "test"} and self.authentication_mode == "simulated":
             raise ValueError("simulated authentication is forbidden outside local/test")
-        if self.authentication_mode == "entra":
-            raise ValueError("Entra authentication is not implemented")
+        if self.authentication_mode == "entra" and not all(
+            (self.entra_tenant_id, self.entra_audience, self.entra_recommendation_client_id)
+        ):
+            raise ValueError("Entra tenant, audience and Recommendation client ID are required")
         if self.embedding_backend == "azure_openai":
             if not self.azure_openai_endpoint or not self.azure_openai_deployment:
                 raise ValueError("Azure OpenAI endpoint and deployment are required")
@@ -57,6 +64,10 @@ class Settings(BaseModel):
             "max_request_bytes": "PIPESOR_RAG_MAX_REQUEST_BYTES",
             "runtime_environment": "PIPESOR_RAG_ENVIRONMENT",
             "authentication_mode": "PIPESOR_RAG_AUTHENTICATION_MODE",
+            "entra_tenant_id": "PIPESOR_RAG_ENTRA_TENANT_ID",
+            "entra_audience": "PIPESOR_RAG_ENTRA_AUDIENCE",
+            "entra_recommendation_client_id": "PIPESOR_RAG_ENTRA_RECOMMENDATION_CLIENT_ID",
+            "entra_required_role": "PIPESOR_RAG_ENTRA_REQUIRED_ROLE",
             "embedding_backend": "PIPESOR_RAG_EMBEDDING_BACKEND",
             "embedding_model": "PIPESOR_RAG_EMBEDDING_MODEL",
             "embedding_model_version": "PIPESOR_RAG_EMBEDDING_MODEL_VERSION",

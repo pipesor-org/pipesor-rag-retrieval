@@ -36,9 +36,11 @@ docker build --provenance=false --tag pipesor-rag-retrieval:local .
 docker run --rm --publish 8080:8080 pipesor-rag-retrieval:local
 ```
 
-The current `X-Pipesor-Caller: recommendation_service` check is a deliberately
-isolated adapter for local contract validation. It is not production authentication;
-the approved Entra audience/application contract must replace it before deployment.
+The `X-Pipesor-Caller: recommendation_service` check is restricted to local/test.
+Non-local environments use single-tenant Microsoft Entra app-only access tokens with
+an exclusive RAG audience. RAG validates the RS256 signature against the tenant's
+published keys, issuer, audience, lifetime, tenant, `idtyp=app`, Recommendation's
+`azp` client ID and the `Rag.Query` application role; delegated tokens are rejected.
 
 The internal endpoint is `POST /internal/v1/retrieval/query`. It accepts contract
 version `1.0`, a correlation ID, query, authorization scope, permitted corpus kinds
@@ -111,9 +113,11 @@ logs are JSON and contain only route/method/status/duration and the opaque
 correlation header, never query or retrieved content.
 
 Authentication is fail-closed by environment. `simulated` is allowed only with
-`PIPESOR_RAG_ENVIRONMENT=local|test`; non-local startup rejects it. Selecting
-`entra` also fails until issuer, audience, role and managed-identity values are
-approved and its adapter is implemented.
+`PIPESOR_RAG_ENVIRONMENT=local|test`; non-local startup rejects it. `entra` requires
+`PIPESOR_RAG_ENTRA_TENANT_ID`, `PIPESOR_RAG_ENTRA_AUDIENCE` and
+`PIPESOR_RAG_ENTRA_RECOMMENDATION_CLIENT_ID`. The required role is fixed to
+`Rag.Query`. IaC must create the app role/audience and assign it to Recommendation's
+system-assigned identity; this repository creates no identity or role assignment.
 
 CI applies the real Alembic chain to a disposable PostgreSQL 17/pgvector service
 pinned by digest. It verifies import creation/idempotency/replacement, active-version
