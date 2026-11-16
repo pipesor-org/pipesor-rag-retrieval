@@ -42,9 +42,9 @@ retrieval dependencies to a generic retryable `503`. Simulated caller identity i
 limited to local/test; every non-local environment requires the approved Entra
 tenant, audience, Recommendation client identity and `Rag.Query` role contract.
 
-**Status: local implementation foundation; not approved for IaC consumption or deployment.** Prepared for PD-035. [Architecture consumption](architecture.md) records the consulted source revision `c84ef3e4629fcb0c38315f32b641a5fb949e450d`, model IDs, applicable ADRs and committed PD-033–036. ADR-019 governs the current MVP alignment.
+**Status: executable and publishable service artifact; not approved for IaC activation or deployment.** Prepared for PD-035. [Architecture consumption](architecture.md) records the consulted source revision `c84ef3e4629fcb0c38315f32b641a5fb949e450d`, model IDs, applicable ADRs and committed PD-033–036. ADR-019 governs the current MVP alignment.
 
-**Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. This increment adds local application code and an image definition, but no published image, credentials or migrations. IaC contains infrastructure preparation; provisioning is not evidenced here.
+**Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. This repository now includes executable application code, owned Alembic migrations, an image definition and private publication automation. The first successful merged-main run supplies the published digest. No credentials, cloud resources or deployment are created here. IaC contains infrastructure preparation; provisioning is not evidenced here.
 
 ## Identity and runtime
 
@@ -73,9 +73,9 @@ PostgreSQL's `vector` allowlist setting does not execute SQL extension creation,
 | Requirement | Value | Source and status |
 |---|---|---|
 | Delivery unit | Container image for this service. | Documented fact: `deployment.containerization`, ADR-001/018. |
-| Immutable identity | Associate the image with its source commit and digest; promote the same digest through the staged delivery flow. | Documented organization target: CONTRIBUTING artifact promotion. No digest, version, image or automation exists. |
-| Release/version | Policy targets Conventional-Commit-derived SemVer and protected `vX.Y.Z` tags after staging, without rebuilding. | Documented organization target, not configured release tooling. GHCR is selected in the integrated IaC baseline; image path/tag convention, build/publish responsibility and private-pull credentials remain pending under PD-035. |
-| Ownership handoff | Proposed: this service's maintainers supply the tested image/digest and runtime/configuration requirements; IaC maintainers consume the approved delivery inputs for the agreed environment. | Proposal under PD-035; no named build/publish owner or accepted handoff contract is documented. |
+| Immutable identity | A successful merged-main workflow publishes the already verified image as `ghcr.io/pipesor-org/pipesor-rag-retrieval:sha-<full-commit-sha>`, records its registry digest and verifies private visibility. Consumers use the digest. | Implemented delivery contract; the first successful run supplies the concrete digest. |
+| Release/version | Policy targets Conventional-Commit-derived SemVer and protected `vX.Y.Z` tags after staging, without rebuilding. The manual promotion workflow accepts an existing digest and verifies it is unchanged after tagging. | Implemented artifact promotion mechanism; version selection, Git tag protection and environment approvals remain release-governance inputs. |
+| Ownership handoff | This repository supplies the tested private image/digest and runtime/configuration requirements; IaC consumes the approved digest for the agreed environment. | Implemented artifact handoff; private GHCR pull credentials and deployment authorization remain IaC/administration work. |
 | Promotion responsibility | Independent QA approval before staging and independent product-owner approval before production are policy targets. | Documented organization target. Concrete automation, environment mapping and operational owners remain unknown under PD-035; do not infer them from the sibling IaC implementation. |
 
 Current target: only `dev` is selected for temporary academic MVP preparation (ADR-019 and IaC ADR 004). Local service integration/validation, complete readiness/access/cost review and explicit target/action authorization precede Azure writes. The dev procedural approval exception does not extend to future environments; retain independent QA/production promotion rules when commissioned.
@@ -86,9 +86,9 @@ Documented fact: Documented synchronous REST/HTTPS requests from recommendation_
 
 | Pending runtime value | Status and approval required |
 |---|---|
-| Listening port and bind address | Unknown, PD-035; framework defaults are not approved contract values. |
+| Listening port and bind address | `0.0.0.0:8080`; configurable with `PIPESOR_RAG_HOST` and `PIPESOR_RAG_PORT`. |
 | Ingress scope, routing, TLS termination and caller authorization | Unknown beyond the documented caller/protocol above; PD-034/035, and PD-036 for workflow access where used. Do not add public exposure. |
-| Liveness/readiness/startup probes | Paths, protocol, port, criteria and timings unknown, PD-035. No health endpoint is selected or implemented. |
+| Liveness/readiness/startup probes | HTTP `/health/live` verifies process survival; `/health/ready` verifies the selected repository and returns 503 when unavailable. Probe timings remain a deployment input. |
 | Startup | Initialization order, dependency retries, startup budget and migration coordination unknown, PD-035. |
 | Shutdown | Graceful termination/drain behavior, time budget and in-flight work handling unknown, PD-035; broker consumers also depend on PD-033 re-delivery agreement. |
 
@@ -100,7 +100,11 @@ Documented fact: Documented synchronous REST/HTTPS requests from recommendation_
 | Secret/authentication requirements | System-assigned identity uses token-based Azure OpenAI access with `Cognitive Services OpenAI User`; Recommendation uses an app-only token for RAG with `Rag.Query`. PostgreSQL remains Entra-only with separate runtime/import/migration grants. No API key is accepted by the application contract. | Approved mechanisms; actual principals, grants and connectivity remain IaC/administration delivery work. |
 | Delivery of values | Proposed: backend maintainers define/validate the required configuration interface; the authorized environment/integration owners supply approved values through the agreed IaC handoff. | Proposal, PD-035; specific people/teams, rotation and distribution mechanism remain unknown. |
 
-No application environment-variable names, credentials, secret store or runtime defaults are approved by this document. The system-assigned ACA identity lifecycle is selected in IaC; its creation, access grants and user/workflow authentication remain separate requirements.
+The application environment-variable names and validated defaults are documented in
+the repository README and enforced by the typed configuration. No credential value or
+secret store is created here. The system-assigned ACA identity lifecycle is selected
+in IaC; its creation, access grants and user/workflow authentication remain separate
+requirements.
 
 ## Access and integration
 
@@ -118,11 +122,18 @@ Documented ownership from ADR-018 and `model/domain.yml.entities`:
 
 One physical PostgreSQL instance is shared; queries and commands use logical CQRS. Writes are confined to owned tables; shared schemas do not grant cross-owner writes. Physical FKs may exist within a schema; cross-schema references are logical IDs, with no ORM navigation across contexts (ADR-018, DD-014, PD-031). `audit.audit_events` has shared cross-cutting ownership and is not assigned exclusively to this repository; exact shared audit-write mechanics remain pending PD-035. Inferred `pipeline_access_grants`, where listed, preserve `ia_only`/inferred status and pending PD-007/008. No persistent schema is added for technical processing services without documented ownership.
 
-**Proposal (PD-035):** the owner of each table authors and validates its migrations; IaC consumes approved compatibility and execution requirements without owning functional schema changes. Migration author/runner approval, sequencing, execution mechanism, rollback/recovery and deployment ordering are **unknown**; no migration tool or job is selected. Services without owned tables have no owned-schema migration payload; do not infer new tables to fill the gap.
+The service owns and validates its Alembic migrations for the `knowledge` schema; IaC
+does not own functional schema changes. The authorized migration runner, grants,
+deployment sequencing and rollback/recovery procedure remain deployment decisions.
+The database administrator must enable the `vector` extension before Alembic runs.
 
 **Documented facts:** logical references must be validated through existing contracts (PD-031). Logs, diagnoses and evidence have the documented 365-day retention policy (ADR-013/016/018, INV-009, domain RET-001); do not extend that duration to corpus, configuration or audit. Policy evidence and purge mechanisms remain PD-017/030.
 
-**Unknown (PD-033/034/035):** accepted message/API/schema compatibility rules, supported producer/consumer version skew, migration rollout sequencing and validation evidence. No proposed DTO, class design or embedding dimension is treated as an approved contract. For knowledge storage, vector dimension and corpus updates remain PD-005/006; no migration can assume either.
+The Recommendation-to-RAG REST contract is version `1.0`, and the approved embedding
+contract fixes `text-embedding-3-small` at 1536 dimensions. The schema rejects
+incompatible vectors and model versions. Migration rollout sequencing and validation
+against live infrastructure remain deployment work; real corpus updates continue to
+require the authorization and provenance rules of PD-006/023.
 
 ## Operations
 

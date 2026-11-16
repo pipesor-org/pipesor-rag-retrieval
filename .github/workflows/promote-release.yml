@@ -1,0 +1,61 @@
+name: Promote release image
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing protected release tag, in vX.Y.Z form
+        required: true
+        type: string
+      digest:
+        description: Published main image digest, in sha256 form
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/pipesor-org/pipesor-rag-retrieval
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate immutable release inputs
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          SOURCE_DIGEST: ${{ inputs.digest }}
+        run: |
+          [[ "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$SOURCE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+      - name: Authenticate to GHCR
+        uses: docker/login-action@v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Attach release tag without rebuilding
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          SOURCE_DIGEST: ${{ inputs.digest }}
+        run: |
+          docker pull "${IMAGE_NAME}@${SOURCE_DIGEST}"
+          image_id="$(docker image inspect "${IMAGE_NAME}@${SOURCE_DIGEST}" --format '{{.Id}}')"
+          docker tag "$image_id" "${IMAGE_NAME}:${RELEASE_VERSION}"
+          docker push "${IMAGE_NAME}:${RELEASE_VERSION}"
+      - name: Verify promoted digest and package visibility
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          SOURCE_DIGEST: ${{ inputs.digest }}
+        run: |
+          # shellcheck disable=SC2016
+          promoted_digest="$(docker buildx imagetools inspect "${IMAGE_NAME}:${RELEASE_VERSION}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          test "$promoted_digest" = "$SOURCE_DIGEST"
+          visibility="$(gh api /orgs/pipesor-org/packages/container/pipesor-rag-retrieval --jq .visibility)"
+          test "$visibility" = private
+          # shellcheck disable=SC2016
+          printf 'Promoted `%s@%s` as `%s`.\n' "$IMAGE_NAME" "$SOURCE_DIGEST" "$RELEASE_VERSION" >> "$GITHUB_STEP_SUMMARY"
