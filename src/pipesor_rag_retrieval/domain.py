@@ -15,18 +15,18 @@ class CorpusKind(StrEnum):
 @dataclass(frozen=True, slots=True)
 class AuthorizationScope:
     tenant_id: UUID
-    installation_id: str
-    repository_id: str
+    github_installation_id: str
+    github_repository_id: str
     pipeline_id: UUID | None = None
-    revision: str = ""
+    scope_revision: str = ""
 
     def permits(self, candidate: AuthorizationScope) -> bool:
         return (
             self.tenant_id == candidate.tenant_id
-            and self.installation_id == candidate.installation_id
-            and self.repository_id == candidate.repository_id
+            and self.github_installation_id == candidate.github_installation_id
+            and self.github_repository_id == candidate.github_repository_id
             and (candidate.pipeline_id is None or self.pipeline_id == candidate.pipeline_id)
-            and self.revision == candidate.revision
+            and self.scope_revision == candidate.scope_revision
         )
 
 

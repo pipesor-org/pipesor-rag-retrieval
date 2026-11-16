@@ -48,10 +48,15 @@ def records() -> tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord]:
         title="Synthetic runbook",
         provenance="synthetic://runbook",
         tenant_id=TENANT,
-        installation_id="20",
-        repository_id="10",
+        github_installation_id="20",
+        github_repository_id="10",
         pipeline_id=PIPELINE,
-        authorization_scope_revision="scope-1",
+        scope_revision="scope-1",
+        source_id="runbook/worker",
+        source_version="v1",
+        content_hash="0" * 64,
+        authorization_reference="approval://CAB-42",
+        active=True,
         correlation_id="corr-1",
         created_at=now,
     )
@@ -79,7 +84,7 @@ def test_repository_maps_authorized_rows_and_provenance() -> None:
     assert result[0].scope == scope
     compiled = fake.statement.compile(dialect=postgresql.dialect())
     assert "tenant_id" in str(compiled)
-    assert "authorization_scope_revision" in str(compiled)
+    assert "scope_revision" in str(compiled)
 
 
 def test_repository_requires_positive_candidate_limit() -> None:
