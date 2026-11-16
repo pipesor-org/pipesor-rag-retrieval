@@ -8,6 +8,7 @@ from pipesor_rag_retrieval.infrastructure import (
     DeterministicEmbeddingProvider,
     InMemoryKnowledgeRepository,
 )
+from pipesor_rag_retrieval.errors import RetrievalUnavailable
 
 TENANT = UUID("11111111-1111-4111-8111-111111111111")
 PIPELINE = UUID("22222222-2222-4222-8222-222222222222")
@@ -84,6 +85,6 @@ def test_rejects_incompatible_vectors() -> None:
         InMemoryKnowledgeRepository((invalid,)), DeterministicEmbeddingProvider()
     )
 
-    with pytest.raises(ValueError, match="incompatible"):
+    with pytest.raises(RetrievalUnavailable, match="unavailable"):
         service.execute(query(scope()))
 

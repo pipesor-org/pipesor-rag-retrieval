@@ -77,6 +77,19 @@ different content fails; a new version deactivates the former active version.
 Embeddings remain deterministic simulations until Foundry model, dimension,
 deployment, region and permissions are approved.
 
+## Runtime safety
+
+`/health/live` reports process survival. `/health/ready` checks the selected
+knowledge repository and returns `503 not_ready` when PostgreSQL cannot answer.
+Requests default to a 64 KiB limit (`PIPESOR_RAG_MAX_REQUEST_BYTES`). Operational
+logs are JSON and contain only route/method/status/duration and the opaque
+correlation header, never query or retrieved content.
+
+Authentication is fail-closed by environment. `simulated` is allowed only with
+`PIPESOR_RAG_ENVIRONMENT=local|test`; non-local startup rejects it. Selecting
+`entra` also fails until issuer, audience, role and managed-identity values are
+approved and its adapter is implemented.
+
 Check affected links and consistency with the referenced sources, then run:
 
 ```bash

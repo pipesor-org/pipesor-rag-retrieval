@@ -22,3 +22,13 @@ def test_database_url_is_secret() -> None:
     )
     assert "secret" not in repr(settings)
 
+
+def test_simulated_authentication_is_forbidden_outside_local_test() -> None:
+    with pytest.raises(ValidationError, match="simulated authentication"):
+        Settings(runtime_environment="dev")
+
+
+def test_unimplemented_entra_mode_fails_closed() -> None:
+    with pytest.raises(ValidationError, match="Entra authentication is not implemented"):
+        Settings(authentication_mode="entra")
+

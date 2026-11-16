@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from pgvector.sqlalchemy import VECTOR
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, select, update
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, select, text, update
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
@@ -102,6 +102,10 @@ class PostgreSQLKnowledgeRepository:
         with self._session_factory() as session:
             rows = session.execute(statement).all()
         return tuple(self._to_domain(chunk, document) for chunk, document in rows)
+
+    def ready(self) -> bool:
+        with self._session_factory() as session:
+            return session.scalar(select(1)) == 1
 
     @staticmethod
     def _to_domain(
