@@ -65,7 +65,9 @@ class KnowledgeChunkRecord(Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     provenance: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding: Mapped[list[float] | None] = mapped_column(VECTOR(), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(VECTOR(1536), nullable=True)
+    embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
+    embedding_model_version: Mapped[str] = mapped_column(String(128), nullable=False)
     correlation_id: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -79,7 +81,15 @@ class PostgreSQLKnowledgeRepository:
         self._session_factory = session_factory
         self._candidate_limit = candidate_limit
 
-    def candidates(self, scope: AuthorizationScope) -> tuple[KnowledgeChunk, ...]:
+    def candidates(
+        self,
+        scope: AuthorizationScope,
+        query_embedding: tuple[float, ...],
+        embedding_model: str,
+        embedding_model_version: str,
+    ) -> tuple[KnowledgeChunk, ...]:
+        if len(query_embedding) != 1536:
+            raise ValueError("query embedding must contain 1536 dimensions")
         statement = (
             select(KnowledgeChunkRecord, KnowledgeDocumentRecord)
             .join(KnowledgeDocumentRecord, KnowledgeDocumentRecord.id == KnowledgeChunkRecord.document_id)
@@ -90,8 +100,13 @@ class PostgreSQLKnowledgeRepository:
                 KnowledgeDocumentRecord.scope_revision == scope.scope_revision,
                 KnowledgeDocumentRecord.active.is_(True),
                 KnowledgeChunkRecord.embedding.is_not(None),
+                KnowledgeChunkRecord.embedding_model == embedding_model,
+                KnowledgeChunkRecord.embedding_model_version == embedding_model_version,
             )
-            .order_by(KnowledgeChunkRecord.id)
+            .order_by(
+                KnowledgeChunkRecord.embedding.cosine_distance(list(query_embedding)),
+                KnowledgeChunkRecord.id,
+            )
             .limit(self._candidate_limit)
         )
         statement = statement.where(
@@ -202,6 +217,8 @@ class PostgreSQLCorpusStore:
                     content=chunk.content,
                     provenance=chunk.provenance,
                     embedding=list(chunk.embedding),
+                    embedding_model=chunk.embedding_model,
+                    embedding_model_version=chunk.embedding_model_version,
                     correlation_id=request.correlation_id,
                     created_at=record.created_at,
                 )

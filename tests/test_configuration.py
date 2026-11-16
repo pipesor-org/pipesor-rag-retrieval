@@ -32,3 +32,23 @@ def test_unimplemented_entra_mode_fails_closed() -> None:
     with pytest.raises(ValidationError, match="Entra authentication is not implemented"):
         Settings(authentication_mode="entra")
 
+
+def test_azure_embeddings_require_https_endpoint_and_deployment() -> None:
+    with pytest.raises(ValidationError, match="endpoint and deployment"):
+        Settings(embedding_backend="azure_openai")
+    with pytest.raises(ValidationError, match="must use HTTPS"):
+        Settings(
+            embedding_backend="azure_openai",
+            azure_openai_endpoint="http://foundry.invalid",
+            azure_openai_deployment="pipesor-dev-embeddings",
+            embedding_model_version="2026-11",
+        )
+
+
+def test_approved_embedding_contract_is_dimensioned() -> None:
+    settings = Settings()
+    assert settings.embedding_model == "text-embedding-3-small"
+    assert settings.embedding_dimension == 1536
+    assert settings.embedding_timeout_seconds == 15
+    assert settings.embedding_max_retries == 2
+

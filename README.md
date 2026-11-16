@@ -63,9 +63,25 @@ the `vector` extension first. Apply it only through an authorized migration path
 PIPESOR_RAG_DATABASE_URL='<approved Entra-compatible URL>' alembic upgrade head
 ```
 
-The current adapter filters by authorization scope before loading a bounded set of
-vectors. It deliberately creates no vector index; production semantic search remains
-blocked on the approved embedding model and dimension.
+The approved embedding contract uses `text-embedding-3-small` with exactly 1536
+dimensions for documents and queries. PostgreSQL filters by authorization scope and
+compatible model version before using a cosine HNSW index. A model-version change
+requires an explicit re-import/re-embedding migration; incompatible vectors are
+rejected rather than mixed.
+
+`PIPESOR_RAG_EMBEDDING_BACKEND=azure_openai` selects the Azure OpenAI v1 adapter and
+requires `PIPESOR_RAG_AZURE_OPENAI_ENDPOINT`,
+`PIPESOR_RAG_AZURE_OPENAI_DEPLOYMENT` and a non-placeholder
+`PIPESOR_RAG_EMBEDDING_MODEL_VERSION`. The proposed dev deployment name is
+`pipesor-dev-embeddings`. Authentication uses `DefaultAzureCredential`, resolving to
+the Container App system-assigned identity in Azure, with the
+`Cognitive Services OpenAI User` role supplied outside this repository.
+
+The embedding operation has a total 15-second budget and at most two retries for
+transient connection, timeout, throttling and server failures. The SDK retry layer is
+disabled so only this adapter retries, and `Retry-After` is honored within the total
+budget. Endpoint, deployment, region and quota remain environment validation inputs;
+no Azure resource or role assignment is created by this repository.
 
 ## Administrative corpus import
 
@@ -82,8 +98,9 @@ pipesor-rag-import authorized-document.json
 
 The same source version and canonical hash is idempotent. Reusing a version with
 different content fails; a new version deactivates the former active version.
-Embeddings remain deterministic simulations until Foundry model, dimension,
-deployment, region and permissions are approved.
+Local/test defaults remain deterministic simulations with the same 1536-dimension
+shape. Real corpus remains prohibited until its inventory, provenance, sanitization,
+scope and accountable authorization are recorded.
 
 ## Runtime safety
 

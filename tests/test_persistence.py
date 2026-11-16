@@ -67,6 +67,8 @@ def records() -> tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord]:
         content="Synthetic content",
         provenance="synthetic://runbook#0",
         embedding=[0.1, 0.2],
+        embedding_model="text-embedding-3-small",
+        embedding_model_version="simulated-v1",
         correlation_id="corr-1",
         created_at=now,
     )
@@ -78,7 +80,12 @@ def test_repository_maps_authorized_rows_and_provenance() -> None:
     repository = PostgreSQLKnowledgeRepository(lambda: fake)
     scope = AuthorizationScope(TENANT, "20", "10", PIPELINE, "scope-1")
 
-    result = repository.candidates(scope)
+    result = repository.candidates(
+        scope,
+        tuple(0.1 for _ in range(1536)),
+        "text-embedding-3-small",
+        "simulated-v1",
+    )
 
     assert result[0].provenance == "synthetic://runbook#0"
     assert result[0].scope == scope
