@@ -59,6 +59,24 @@ The current adapter filters by authorization scope before loading a bounded set 
 vectors. It deliberately creates no vector index; production semantic search remains
 blocked on the approved embedding model and dimension.
 
+## Administrative corpus import
+
+Corpus loading is an administrative CLI, not an HTTP API. Input must be sanitized
+JSON with canonical `github_installation_id` / `github_repository_id`, provenance,
+an authorization reference, source ID/version and non-evaluation chunks. Run it only
+through an approved database access path:
+
+```bash
+PIPESOR_RAG_STORAGE_BACKEND=postgresql \
+PIPESOR_RAG_DATABASE_URL='<approved Entra-compatible URL>' \
+pipesor-rag-import authorized-document.json
+```
+
+The same source version and canonical hash is idempotent. Reusing a version with
+different content fails; a new version deactivates the former active version.
+Embeddings remain deterministic simulations until Foundry model, dimension,
+deployment, region and permissions are approved.
+
 Check affected links and consistency with the referenced sources, then run:
 
 ```bash

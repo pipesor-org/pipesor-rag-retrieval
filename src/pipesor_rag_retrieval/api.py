@@ -19,10 +19,10 @@ PositiveExternalId = Annotated[str, StringConstraints(pattern=r"^[1-9][0-9]*$", 
 class ScopeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tenant_id: UUID
-    installation_id: PositiveExternalId
-    repository_id: PositiveExternalId
+    github_installation_id: PositiveExternalId
+    github_repository_id: PositiveExternalId
     pipeline_id: UUID | None = None
-    revision: SafeId
+    scope_revision: SafeId
 
 
 class RetrievalRequest(BaseModel):

@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from pgvector.sqlalchemy import VECTOR
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, select
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, select, update
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from .domain import AuthorizationScope, CorpusKind, KnowledgeChunk
+from .corpus import ImportStatus, PreparedDocument
 
 
 class Base(DeclarativeBase):
@@ -33,10 +34,15 @@ class KnowledgeDocumentRecord(Base):
     provenance: Mapped[str] = mapped_column(Text, nullable=False)
     reviewed_incident_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
     tenant_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
-    installation_id: Mapped[str] = mapped_column(String(32), nullable=False)
-    repository_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    github_installation_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    github_repository_id: Mapped[str] = mapped_column(String(32), nullable=False)
     pipeline_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
-    authorization_scope_revision: Mapped[str] = mapped_column(String(128), nullable=False)
+    scope_revision: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(256), nullable=False)
+    source_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    authorization_reference: Mapped[str] = mapped_column(Text, nullable=False)
+    active: Mapped[bool] = mapped_column(nullable=False, default=True)
     correlation_id: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -79,9 +85,10 @@ class PostgreSQLKnowledgeRepository:
             .join(KnowledgeDocumentRecord, KnowledgeDocumentRecord.id == KnowledgeChunkRecord.document_id)
             .where(
                 KnowledgeDocumentRecord.tenant_id == scope.tenant_id,
-                KnowledgeDocumentRecord.installation_id == scope.installation_id,
-                KnowledgeDocumentRecord.repository_id == scope.repository_id,
-                KnowledgeDocumentRecord.authorization_scope_revision == scope.revision,
+                KnowledgeDocumentRecord.github_installation_id == scope.github_installation_id,
+                KnowledgeDocumentRecord.github_repository_id == scope.github_repository_id,
+                KnowledgeDocumentRecord.scope_revision == scope.scope_revision,
+                KnowledgeDocumentRecord.active.is_(True),
                 KnowledgeChunkRecord.embedding.is_not(None),
             )
             .order_by(KnowledgeChunkRecord.id)
@@ -112,11 +119,86 @@ class PostgreSQLKnowledgeRepository:
             provenance=chunk.provenance,
             scope=AuthorizationScope(
                 tenant_id=document.tenant_id,
-                installation_id=document.installation_id,
-                repository_id=document.repository_id,
+                github_installation_id=document.github_installation_id,
+                github_repository_id=document.github_repository_id,
                 pipeline_id=document.pipeline_id,
-                revision=document.authorization_scope_revision,
+                scope_revision=document.scope_revision,
             ),
             embedding=tuple(float(value) for value in chunk.embedding),
         )
+
+
+class PostgreSQLCorpusStore:
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        self._session_factory = session_factory
+
+    def import_document(self, document: PreparedDocument) -> ImportStatus:
+        request = document.request
+        scope = request.scope
+        with self._session_factory() as session:
+            existing = session.scalar(
+                select(KnowledgeDocumentRecord).where(
+                    KnowledgeDocumentRecord.tenant_id == scope.tenant_id,
+                    KnowledgeDocumentRecord.github_repository_id == scope.github_repository_id,
+                    KnowledgeDocumentRecord.source_id == request.source_id,
+                    KnowledgeDocumentRecord.source_version == request.source_version,
+                )
+            )
+            if existing is not None:
+                if existing.content_hash != document.content_hash:
+                    raise ValueError("source version already exists with different content")
+                return ImportStatus.UNCHANGED
+            replaced = session.scalar(
+                select(KnowledgeDocumentRecord.id).where(
+                    KnowledgeDocumentRecord.tenant_id == scope.tenant_id,
+                    KnowledgeDocumentRecord.github_repository_id == scope.github_repository_id,
+                    KnowledgeDocumentRecord.source_id == request.source_id,
+                    KnowledgeDocumentRecord.active.is_(True),
+                ).limit(1)
+            ) is not None
+            session.execute(
+                update(KnowledgeDocumentRecord)
+                .where(
+                    KnowledgeDocumentRecord.tenant_id == scope.tenant_id,
+                    KnowledgeDocumentRecord.github_repository_id == scope.github_repository_id,
+                    KnowledgeDocumentRecord.source_id == request.source_id,
+                    KnowledgeDocumentRecord.active.is_(True),
+                )
+                .values(active=False)
+            )
+            record = KnowledgeDocumentRecord(
+                id=document.id,
+                corpus_kind=request.corpus_kind.value,
+                title=request.title,
+                provenance=request.provenance,
+                reviewed_incident_id=request.reviewed_incident_id,
+                tenant_id=scope.tenant_id,
+                github_installation_id=scope.github_installation_id,
+                github_repository_id=scope.github_repository_id,
+                pipeline_id=scope.pipeline_id,
+                scope_revision=scope.scope_revision,
+                source_id=request.source_id,
+                source_version=request.source_version,
+                content_hash=document.content_hash,
+                authorization_reference=request.authorization_reference,
+                active=True,
+                correlation_id=request.correlation_id,
+                created_at=datetime.now(UTC),
+            )
+            session.add(record)
+            session.add_all(
+                KnowledgeChunkRecord(
+                    id=chunk.id,
+                    document_id=document.id,
+                    chunk_index=chunk.index,
+                    content=chunk.content,
+                    provenance=chunk.provenance,
+                    embedding=list(chunk.embedding),
+                    correlation_id=request.correlation_id,
+                    created_at=record.created_at,
+                )
+                for chunk in document.chunks
+            )
+            session.commit()
+            return ImportStatus.REPLACED if replaced else ImportStatus.CREATED
 

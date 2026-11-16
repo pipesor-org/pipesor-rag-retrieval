@@ -18,10 +18,10 @@ def payload() -> dict[str, object]:
         "query": "worker lease restart",
         "authorization_scope": {
             "tenant_id": "11111111-1111-4111-8111-111111111111",
-            "installation_id": "20",
-            "repository_id": "10",
+            "github_installation_id": "20",
+            "github_repository_id": "10",
             "pipeline_id": "22222222-2222-4222-8222-222222222222",
-            "revision": "scope-1",
+            "scope_revision": "scope-1",
         },
         "allowed_corpus_kinds": ["authorized_technical_documentation"],
         "top_k": 5,
