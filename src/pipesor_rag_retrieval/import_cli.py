@@ -10,9 +10,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from .configuration import Settings
+from .bootstrap import build_embedding_provider
 from .corpus import CorpusImport, ImportAuthorizedCorpus
 from .domain import AuthorizationScope, CorpusKind
-from .infrastructure import DeterministicEmbeddingProvider
 from .persistence import PostgreSQLCorpusStore
 
 
@@ -45,7 +45,7 @@ def main() -> None:
         parser.error("PIPESOR_RAG_STORAGE_BACKEND=postgresql and PIPESOR_RAG_DATABASE_URL are required")
     engine = create_engine(settings.database_url.get_secret_value(), pool_pre_ping=True)
     store = PostgreSQLCorpusStore(sessionmaker(bind=engine, expire_on_commit=False))
-    importer = ImportAuthorizedCorpus(store, DeterministicEmbeddingProvider())
+    importer = ImportAuthorizedCorpus(store, build_embedding_provider(settings))
     request = CorpusImport(
         source_id=payload.source_id,
         source_version=payload.source_version,

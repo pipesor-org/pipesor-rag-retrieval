@@ -3,7 +3,7 @@
 ## Authorized first local increment
 
 The project owner authorized this local increment on 2026-11-11 with a versioned
-REST contract, scoped authorization and simulated authentication/embeddings,
+REST contract, scoped authorization and configurable simulated/Azure embeddings,
 without real data or Azure resources. This authorization does not approve IaC
 consumption or deployment.
 
@@ -15,8 +15,10 @@ consumption or deployment.
   remains distinct from validation, authorization and dependency failures.
 - Deterministic embeddings, in-memory knowledge and the caller header are local/test
   adapters, not production security or semantic-search implementations.
-- This increment selects no real corpus loader, PostgreSQL vector dimension, Azure
-  SDK/model, Entra grant or cloud resource.
+- The approved v0.1 contract selects `text-embedding-3-small`, 1536 dimensions,
+  Azure OpenAI API v1, system-assigned managed identity and the
+  `Cognitive Services OpenAI User` requirement. Region, live deployment validation,
+  quota, endpoint values, role assignment and cloud activation remain separate.
 
 The PostgreSQL foundation added after the initial API owns Alembic migrations for
 `knowledge.knowledge_documents` and `knowledge.knowledge_chunks`. It adds explicit

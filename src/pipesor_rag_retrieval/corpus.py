@@ -33,6 +33,8 @@ class PreparedChunk:
     content: str
     provenance: str
     embedding: tuple[float, ...]
+    embedding_model: str
+    embedding_model_version: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +107,8 @@ class ImportAuthorizedCorpus:
                 content=content.strip(),
                 provenance=f"{request.provenance}#chunk={index}",
                 embedding=self._embeddings.embed(content),
+                embedding_model=self._embeddings.model_name,
+                embedding_model_version=self._embeddings.model_version,
             )
             for index, content in enumerate(request.chunks)
         )

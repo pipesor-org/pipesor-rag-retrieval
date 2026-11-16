@@ -9,7 +9,9 @@ description = "Authorized contextual knowledge retrieval for Pipesor."
 requires-python = ">=3.14,<3.15"
 dependencies = [
   "alembic==1.20.1",
+  "azure-identity==1.27.0",
   "fastapi==0.162.4",
+  "openai==3.51.0",
   "pgvector==0.5.1",
   "psycopg[binary]==3.3.8",
   "pydantic==2.14.0",

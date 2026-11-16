@@ -37,7 +37,12 @@ class RetrieveAuthorizedKnowledge:
         query_vector = self._embeddings.embed(query.query)
         matches: list[RetrievalMatch] = []
         try:
-            for chunk in self._repository.candidates(query.scope):
+            for chunk in self._repository.candidates(
+                query.scope,
+                query_vector,
+                self._embeddings.model_name,
+                self._embeddings.model_version,
+            ):
                 if not query.scope.permits(chunk.scope):
                     continue
                 if chunk.corpus_kind not in query.allowed_corpus_kinds:
