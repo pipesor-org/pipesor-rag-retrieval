@@ -7,8 +7,9 @@ import time
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Security, status
 from fastapi.responses import JSONResponse
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from .application import RetrievalQuery, RetrieveAuthorizedKnowledge
@@ -66,14 +67,26 @@ class RetrievalResponse(BaseModel):
     matches: list[MatchResponse]
 
 
-class InternalCaller:
+class ErrorResponse(BaseModel):
+    detail: str
+
+
+SIMULATED_CALLER_SCHEME = APIKeyHeader(
+    name="X-Pipesor-Caller",
+    scheme_name="SimulatedInternalCaller",
+    description="Local/test contract adapter only; production Entra authentication is pending.",
+    auto_error=False,
+)
+
+
+class SimulatedInternalCaller:
     def __init__(self, expected: str) -> None:
         self.expected = expected
 
-    def __call__(self, x_pipesor_caller: Annotated[str | None, Header()] = None) -> str:
-        if x_pipesor_caller != self.expected:
+    def __call__(self, api_key: str | None = Security(SIMULATED_CALLER_SCHEME)) -> str:
+        if api_key != self.expected:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="caller_not_authorized")
-        return x_pipesor_caller
+        return api_key
 
 
 def create_app(
@@ -82,8 +95,14 @@ def create_app(
 ) -> FastAPI:
     settings = Settings.from_environment()
     retrieval = service or build_retrieval_service(settings)
-    caller = authenticate or InternalCaller("recommendation_service")
-    app = FastAPI(title="Pipesor RAG Retrieval", version="1.0.0", docs_url=None, redoc_url=None)
+    caller = authenticate or SimulatedInternalCaller("recommendation_service")
+    app = FastAPI(
+        title="Pipesor RAG Retrieval",
+        version="1.0.0",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
 
     @app.middleware("http")
     async def operational_boundary(request: Request, call_next: Callable[..., object]):
@@ -117,7 +136,14 @@ def create_app(
             raise HTTPException(status_code=503, detail="not_ready")
         return {"status": "ready"}
 
-    @app.post("/internal/v1/retrieval/query", response_model=RetrievalResponse)
+    @app.post(
+        "/internal/v1/retrieval/query",
+        response_model=RetrievalResponse,
+        responses={
+            403: {"model": ErrorResponse, "description": "Caller is not authorized."},
+            503: {"model": ErrorResponse, "description": "Retrieval dependency is unavailable."},
+        },
+    )
     def retrieve(request: RetrievalRequest, _: str = Depends(caller)) -> RetrievalResponse:
         scope = AuthorizationScope(**request.authorization_scope.model_dump())
         try:

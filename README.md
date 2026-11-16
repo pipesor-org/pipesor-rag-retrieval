@@ -44,6 +44,14 @@ The internal endpoint is `POST /internal/v1/retrieval/query`. It accepts contrac
 version `1.0`, a correlation ID, query, authorization scope, permitted corpus kinds
 and `top_k`. No match is a successful response with `status: no_match` and an empty
 list. Results always include document/chunk identifiers and provenance.
+The versioned machine-readable contract is committed at
+`docs/openapi/internal-v1.json`; runtime documentation endpoints remain disabled.
+After an intentional API change, regenerate and verify it with:
+
+```bash
+python tools/export_openapi.py
+python tools/export_openapi.py --check
+```
 
 `PIPESOR_RAG_STORAGE_BACKEND=postgresql` selects the bounded PostgreSQL adapter
 and requires `PIPESOR_RAG_DATABASE_URL`; the value is treated as a secret and must

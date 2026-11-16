@@ -61,6 +61,17 @@ def test_requires_internal_caller() -> None:
     assert response.json()["detail"] == "caller_not_authorized"
 
 
+def test_openapi_contract_documents_internal_security_without_runtime_endpoint() -> None:
+    api = create_app()
+    schema = api.openapi()
+
+    assert TestClient(api).get("/openapi.json").status_code == 404
+    operation = schema["paths"]["/internal/v1/retrieval/query"]["post"]
+    assert operation["security"] == [{"SimulatedInternalCaller": []}]
+    assert set(operation["responses"]) >= {"200", "403", "422", "503"}
+    assert schema["components"]["securitySchemes"]["SimulatedInternalCaller"]["name"] == "X-Pipesor-Caller"
+
+
 def test_returns_explicit_no_match() -> None:
     response = client().post(
         "/internal/v1/retrieval/query",
