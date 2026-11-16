@@ -28,9 +28,20 @@ def test_simulated_authentication_is_forbidden_outside_local_test() -> None:
         Settings(runtime_environment="dev")
 
 
-def test_unimplemented_entra_mode_fails_closed() -> None:
-    with pytest.raises(ValidationError, match="Entra authentication is not implemented"):
+def test_entra_mode_requires_all_canonical_identifiers() -> None:
+    with pytest.raises(ValidationError, match="tenant, audience and Recommendation"):
         Settings(authentication_mode="entra")
+
+
+def test_entra_mode_accepts_complete_single_tenant_contract() -> None:
+    settings = Settings(
+        authentication_mode="entra",
+        runtime_environment="dev",
+        entra_tenant_id="11111111-1111-4111-8111-111111111111",
+        entra_audience="22222222-2222-4222-8222-222222222222",
+        entra_recommendation_client_id="33333333-3333-4333-8333-333333333333",
+    )
+    assert settings.entra_required_role == "Rag.Query"
 
 
 def test_azure_embeddings_require_https_endpoint_and_deployment() -> None:

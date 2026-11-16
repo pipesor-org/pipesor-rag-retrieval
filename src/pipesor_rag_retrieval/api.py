@@ -7,12 +7,12 @@ import time
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Security, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from .application import RetrievalQuery, RetrieveAuthorizedKnowledge
+from .authentication import build_internal_caller
 from .bootstrap import build_retrieval_service
 from .configuration import Settings
 from .domain import AuthorizationScope, CorpusKind
@@ -71,31 +71,14 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
-SIMULATED_CALLER_SCHEME = APIKeyHeader(
-    name="X-Pipesor-Caller",
-    scheme_name="SimulatedInternalCaller",
-    description="Local/test contract adapter only; production Entra authentication is pending.",
-    auto_error=False,
-)
-
-
-class SimulatedInternalCaller:
-    def __init__(self, expected: str) -> None:
-        self.expected = expected
-
-    def __call__(self, api_key: str | None = Security(SIMULATED_CALLER_SCHEME)) -> str:
-        if api_key != self.expected:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="caller_not_authorized")
-        return api_key
-
-
 def create_app(
     service: RetrieveAuthorizedKnowledge | None = None,
     authenticate: Callable[..., str] | None = None,
+    settings: Settings | None = None,
 ) -> FastAPI:
-    settings = Settings.from_environment()
+    settings = settings or Settings.from_environment()
     retrieval = service or build_retrieval_service(settings)
-    caller = authenticate or SimulatedInternalCaller("recommendation_service")
+    caller = authenticate or build_internal_caller(settings)
     app = FastAPI(
         title="Pipesor RAG Retrieval",
         version="1.0.0",
@@ -140,6 +123,7 @@ def create_app(
         "/internal/v1/retrieval/query",
         response_model=RetrievalResponse,
         responses={
+            401: {"model": ErrorResponse, "description": "Bearer token is missing or invalid."},
             403: {"model": ErrorResponse, "description": "Caller is not authorized."},
             503: {"model": ErrorResponse, "description": "Retrieval dependency is unavailable."},
         },

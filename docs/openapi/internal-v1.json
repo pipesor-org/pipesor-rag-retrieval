@@ -257,11 +257,10 @@
       }
     },
     "securitySchemes": {
-      "SimulatedInternalCaller": {
-        "description": "Local/test contract adapter only; production Entra authentication is pending.",
-        "in": "header",
-        "name": "X-Pipesor-Caller",
-        "type": "apiKey"
+      "EntraBearer": {
+        "description": "Single-tenant app-only token for the RAG audience with the Rag.Query role.",
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -294,6 +293,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bearer token is missing or invalid."
           },
           "403": {
             "content": {
@@ -328,7 +337,7 @@
         },
         "security": [
           {
-            "SimulatedInternalCaller": []
+            "EntraBearer": []
           }
         ],
         "summary": "Retrieve"

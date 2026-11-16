@@ -33,14 +33,14 @@ Recommendation-to-RAG v1 scope and an administrative, idempotent corpus importer
 Recommendation supplies a previously verified scope; RAG authenticates that caller
 and applies a second scope filter. The import CLI requires source/version/hash,
 provenance and authorization evidence, rejects evaluation material and exposes no
-public loading API. Azure embeddings remain simulated pending the separately named
-Foundry decisions.
+public loading API. Azure embeddings are selectable through the approved v0.1
+adapter; live endpoint, region, quota and RBAC validation remain deployment inputs.
 
 The local runtime increment distinguishes liveness from repository readiness,
 limits request bytes, emits content-free JSON operational logs and maps unavailable
 retrieval dependencies to a generic retryable `503`. Simulated caller identity is
-limited to local/test; every non-local environment fails startup until the Entra
-contract and adapter are implemented.
+limited to local/test; every non-local environment requires the approved Entra
+tenant, audience, Recommendation client identity and `Rag.Query` role contract.
 
 **Status: local implementation foundation; not approved for IaC consumption or deployment.** Prepared for PD-035. [Architecture consumption](architecture.md) records the consulted source revision `c84ef3e4629fcb0c38315f32b641a5fb949e450d`, model IDs, applicable ADRs and committed PD-033–036. ADR-019 governs the current MVP alignment.
 
@@ -96,8 +96,8 @@ Documented fact: Documented synchronous REST/HTTPS requests from recommendation_
 
 | Category | Known requirement and supplier | Status/source |
 |---|---|---|
-| Nonsecret integration settings | PostgreSQL/pgvector knowledge connection target and authorized knowledge scope. Embedding model/dimension and corpus loading/update mechanism remain pending PD-005/006/023; exact keys and values are unknown. Actual environment values and their suppliers are not assigned. | Targets/capabilities are documented in the model; exact settings and supplier allocation are unknown. |
-| Secret/authentication requirements | The PostgreSQL foundation is Entra-only; runtime token handling, database grants, service-call authentication and suppliers remain pending (PD-027/035). The embedding capability under the Foundry foundation is documented, but no separate direct RAG-to-OpenAI relationship is declared; clarify operational access before credentials or grants are requested. | Unknown except explicitly documented mechanisms; PD-027/035. Secret storage is intentionally undecided. |
+| Nonsecret integration settings | PostgreSQL target and authorized knowledge scope; `text-embedding-3-small`, 1536 dimensions, model version, Azure OpenAI endpoint/deployment; Entra tenant, RAG audience, Recommendation client ID and `Rag.Query`. Region, quota and concrete resource identifiers are supplied after live validation. | Approved v0.1 contract; environment values remain deployment inputs. |
+| Secret/authentication requirements | System-assigned identity uses token-based Azure OpenAI access with `Cognitive Services OpenAI User`; Recommendation uses an app-only token for RAG with `Rag.Query`. PostgreSQL remains Entra-only with separate runtime/import/migration grants. No API key is accepted by the application contract. | Approved mechanisms; actual principals, grants and connectivity remain IaC/administration delivery work. |
 | Delivery of values | Proposed: backend maintainers define/validate the required configuration interface; the authorized environment/integration owners supply approved values through the agreed IaC handoff. | Proposal, PD-035; specific people/teams, rotation and distribution mechanism remain unknown. |
 
 No application environment-variable names, credentials, secret store or runtime defaults are approved by this document. The system-assigned ACA identity lifecycle is selected in IaC; its creation, access grants and user/workflow authentication remain separate requirements.
