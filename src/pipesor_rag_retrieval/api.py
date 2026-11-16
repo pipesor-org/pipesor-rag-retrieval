@@ -71,20 +71,22 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
-def simulated_internal_caller(expected: str) -> Callable[..., str]:
-    scheme = APIKeyHeader(
-        name="X-Pipesor-Caller",
-        scheme_name="SimulatedInternalCaller",
-        description="Local/test contract adapter only; production Entra authentication is pending.",
-        auto_error=False,
-    )
+SIMULATED_CALLER_SCHEME = APIKeyHeader(
+    name="X-Pipesor-Caller",
+    scheme_name="SimulatedInternalCaller",
+    description="Local/test contract adapter only; production Entra authentication is pending.",
+    auto_error=False,
+)
 
-    def authenticate(api_key: Annotated[str | None, Security(scheme)]) -> str:
-        if api_key != expected:
+
+class SimulatedInternalCaller:
+    def __init__(self, expected: str) -> None:
+        self.expected = expected
+
+    def __call__(self, api_key: str | None = Security(SIMULATED_CALLER_SCHEME)) -> str:
+        if api_key != self.expected:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="caller_not_authorized")
         return api_key
-
-    return authenticate
 
 
 def create_app(
@@ -93,7 +95,7 @@ def create_app(
 ) -> FastAPI:
     settings = Settings.from_environment()
     retrieval = service or build_retrieval_service(settings)
-    caller = authenticate or simulated_internal_caller("recommendation_service")
+    caller = authenticate or SimulatedInternalCaller("recommendation_service")
     app = FastAPI(
         title="Pipesor RAG Retrieval",
         version="1.0.0",
