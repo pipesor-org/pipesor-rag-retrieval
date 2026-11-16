@@ -190,6 +190,10 @@ class PostgreSQLCorpusStore:
                 created_at=datetime.now(UTC),
             )
             session.add(record)
+            # The records intentionally expose only identifiers rather than an ORM
+            # relationship. Flush the parent explicitly so PostgreSQL can enforce
+            # the chunk foreign key regardless of SQLAlchemy's unit-of-work order.
+            session.flush()
             session.add_all(
                 KnowledgeChunkRecord(
                     id=chunk.id,

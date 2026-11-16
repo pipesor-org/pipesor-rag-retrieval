@@ -90,6 +90,13 @@ Authentication is fail-closed by environment. `simulated` is allowed only with
 `entra` also fails until issuer, audience, role and managed-identity values are
 approved and its adapter is implemented.
 
+CI applies the real Alembic chain to a disposable PostgreSQL 17/pgvector service
+pinned by digest. It verifies import creation/idempotency/replacement, active-version
+selection, tenant/repository isolation and readiness. Runtime database connection
+and pool waits default to five seconds and are bounded by
+`PIPESOR_RAG_DATABASE_CONNECT_TIMEOUT_SECONDS` and
+`PIPESOR_RAG_DATABASE_POOL_TIMEOUT_SECONDS`.
+
 Check affected links and consistency with the referenced sources, then run:
 
 ```bash
