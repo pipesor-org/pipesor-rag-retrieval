@@ -1,0 +1,338 @@
+{
+  "components": {
+    "schemas": {
+      "CorpusKind": {
+        "enum": [
+          "reviewed_incidents",
+          "authorized_technical_documentation",
+          "authorized_response_procedures"
+        ],
+        "title": "CorpusKind",
+        "type": "string"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "MatchResponse": {
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "corpus_kind": {
+            "$ref": "#/components/schemas/CorpusKind"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "provenance": {
+            "title": "Provenance",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_id",
+          "corpus_kind",
+          "title",
+          "content",
+          "provenance",
+          "score"
+        ],
+        "title": "MatchResponse",
+        "type": "object"
+      },
+      "RetrievalRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_corpus_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/CorpusKind"
+            },
+            "minItems": 1,
+            "title": "Allowed Corpus Kinds",
+            "type": "array"
+          },
+          "authorization_scope": {
+            "$ref": "#/components/schemas/ScopeRequest"
+          },
+          "contract_version": {
+            "const": "1.0",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "correlation_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Correlation Id",
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "top_k": {
+            "default": 5,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "contract_version",
+          "correlation_id",
+          "query",
+          "authorization_scope",
+          "allowed_corpus_kinds"
+        ],
+        "title": "RetrievalRequest",
+        "type": "object"
+      },
+      "RetrievalResponse": {
+        "properties": {
+          "contract_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "correlation_id": {
+            "title": "Correlation Id",
+            "type": "string"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/MatchResponse"
+            },
+            "title": "Matches",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "matches",
+              "no_match"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "correlation_id",
+          "status",
+          "matches"
+        ],
+        "title": "RetrievalResponse",
+        "type": "object"
+      },
+      "ScopeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "github_installation_id": {
+            "maxLength": 32,
+            "pattern": "^[1-9][0-9]*$",
+            "title": "Github Installation Id",
+            "type": "string"
+          },
+          "github_repository_id": {
+            "maxLength": 32,
+            "pattern": "^[1-9][0-9]*$",
+            "title": "Github Repository Id",
+            "type": "string"
+          },
+          "pipeline_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Id"
+          },
+          "scope_revision": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Scope Revision",
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "github_installation_id",
+          "github_repository_id",
+          "scope_revision"
+        ],
+        "title": "ScopeRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "SimulatedInternalCaller": {
+        "description": "Local/test contract adapter only; production Entra authentication is pending.",
+        "in": "header",
+        "name": "X-Pipesor-Caller",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "Pipesor RAG Retrieval",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/internal/v1/retrieval/query": {
+      "post": {
+        "operationId": "retrieve_internal_v1_retrieval_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrievalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Caller is not authorized."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Retrieval dependency is unavailable."
+          }
+        },
+        "security": [
+          {
+            "SimulatedInternalCaller": []
+          }
+        ],
+        "summary": "Retrieve"
+      }
+    }
+  }
+}
