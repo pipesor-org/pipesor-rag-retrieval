@@ -20,6 +20,8 @@ def build_retrieval_service(settings: Settings) -> RetrieveAuthorizedKnowledge:
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=5,
+        pool_timeout=settings.database_pool_timeout_seconds,
+        connect_args={"connect_timeout": settings.database_connect_timeout_seconds},
     )
     sessions = sessionmaker(bind=engine, expire_on_commit=False)
     repository = PostgreSQLKnowledgeRepository(sessions, settings.candidate_limit)
