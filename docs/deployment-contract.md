@@ -34,6 +34,12 @@ provenance and authorization evidence, rejects evaluation material and exposes n
 public loading API. Azure embeddings remain simulated pending the separately named
 Foundry decisions.
 
+The local runtime increment distinguishes liveness from repository readiness,
+limits request bytes, emits content-free JSON operational logs and maps unavailable
+retrieval dependencies to a generic retryable `503`. Simulated caller identity is
+limited to local/test; every non-local environment fails startup until the Entra
+contract and adapter are implemented.
+
 **Status: local implementation foundation; not approved for IaC consumption or deployment.** Prepared for PD-035. [Architecture consumption](architecture.md) records the consulted source revision `c84ef3e4629fcb0c38315f32b641a5fb949e450d`, model IDs, applicable ADRs and committed PD-033–036. ADR-019 governs the current MVP alignment.
 
 **Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. This increment adds local application code and an image definition, but no published image, credentials or migrations. IaC contains infrastructure preparation; provisioning is not evidenced here.

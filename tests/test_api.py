@@ -100,3 +100,13 @@ def test_health_endpoints() -> None:
     assert api.get("/health/live").json() == {"status": "alive"}
     assert api.get("/health/ready").json() == {"status": "ready"}
 
+
+def test_rejects_oversized_request_before_parsing() -> None:
+    response = client().post(
+        "/internal/v1/retrieval/query",
+        headers={"content-length": "70000", "X-Pipesor-Caller": "recommendation_service"},
+        content=b"{}",
+    )
+    assert response.status_code == 413
+    assert response.json()["detail"] == "request_too_large"
+

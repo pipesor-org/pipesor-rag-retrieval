@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
+import logging
+import time
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from .application import RetrievalQuery, RetrieveAuthorizedKnowledge
 from .bootstrap import build_retrieval_service
 from .configuration import Settings
 from .domain import AuthorizationScope, CorpusKind
+from .errors import RetrievalUnavailable
+
+LOGGER = logging.getLogger("pipesor.rag")
 
 SafeId = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")]
 PositiveExternalId = Annotated[str, StringConstraints(pattern=r"^[1-9][0-9]*$", max_length=32)]
@@ -73,9 +80,32 @@ def create_app(
     service: RetrieveAuthorizedKnowledge | None = None,
     authenticate: Callable[..., str] | None = None,
 ) -> FastAPI:
-    retrieval = service or build_retrieval_service(Settings.from_environment())
+    settings = Settings.from_environment()
+    retrieval = service or build_retrieval_service(settings)
     caller = authenticate or InternalCaller("recommendation_service")
     app = FastAPI(title="Pipesor RAG Retrieval", version="1.0.0", docs_url=None, redoc_url=None)
+
+    @app.middleware("http")
+    async def operational_boundary(request: Request, call_next: Callable[..., object]):
+        content_length = request.headers.get("content-length")
+        if content_length and content_length.isdecimal() and int(content_length) > settings.max_request_bytes:
+            return JSONResponse(status_code=413, content={"detail": "request_too_large"})
+        started = time.monotonic()
+        response = await call_next(request)
+        LOGGER.info(
+            json.dumps(
+                {
+                    "event": "http_request_completed",
+                    "path": request.url.path,
+                    "method": request.method,
+                    "status": response.status_code,
+                    "duration_ms": round((time.monotonic() - started) * 1000, 3),
+                    "correlation_id": request.headers.get("x-correlation-id"),
+                },
+                separators=(",", ":"),
+            )
+        )
+        return response
 
     @app.get("/health/live", include_in_schema=False)
     def live() -> dict[str, str]:
@@ -83,6 +113,8 @@ def create_app(
 
     @app.get("/health/ready", include_in_schema=False)
     def ready() -> dict[str, str]:
+        if not retrieval.ready():
+            raise HTTPException(status_code=503, detail="not_ready")
         return {"status": "ready"}
 
     @app.post("/internal/v1/retrieval/query", response_model=RetrievalResponse)
@@ -98,6 +130,8 @@ def create_app(
                     top_k=request.top_k,
                 )
             )
+        except RetrievalUnavailable as error:
+            raise HTTPException(status_code=503, detail="retrieval_unavailable") from error
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         matches = [

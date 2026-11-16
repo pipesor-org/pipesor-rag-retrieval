@@ -24,3 +24,6 @@ class InMemoryKnowledgeRepository:
     def candidates(self, scope: AuthorizationScope) -> tuple[KnowledgeChunk, ...]:
         return tuple(chunk for chunk in self._chunks if scope.permits(chunk.scope))
 
+    def ready(self) -> bool:
+        return True
+
