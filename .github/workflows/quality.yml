@@ -40,6 +40,10 @@ jobs:
       - run: python -m pip install --disable-pip-version-check -e ".[dev]"
       - run: python -m pytest
       - run: python -m compileall -q src tests tools
+      - name: Validate committed OpenAPI contract
+        run: |
+          python tools/export_openapi.py --output artifacts/internal-v1.json
+          python tools/export_openapi.py --check
       - name: Validate offline migration SQL
         run: alembic upgrade head --sql > migration.sql
       - name: Validate PostgreSQL and pgvector integration
