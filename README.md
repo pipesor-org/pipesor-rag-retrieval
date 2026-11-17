@@ -2,10 +2,12 @@
 
 RAG Retrieval supplies authorized contextual knowledge to the recommendation service through semantic search, preserving provenance and owning the knowledge context in PostgreSQL/pgvector. Its canonical architecture ID is `rag_retrieval`; the planned runtime is Python / FastAPI on Azure Container Apps.
 
-The first executable increment provides a versioned internal retrieval API, explicit
-authorization scopes, provenance-preserving results, deterministic local adapters,
-tests, a non-root container and quality automation. PostgreSQL/pgvector, Entra and
-Microsoft Foundry remain behind interfaces until their open contracts are approved.
+The executable service provides a versioned internal retrieval API, explicit
+authorization scopes, provenance-preserving results, PostgreSQL/pgvector persistence,
+Microsoft Entra workload authentication, deterministic local adapters, an Azure
+OpenAI embedding adapter, tests, a non-root container and quality automation. Live
+cloud values, access grants, corpus authorization and deployment remain external
+activation requirements.
 
 ## Documentation
 
@@ -125,6 +127,32 @@ selection, tenant/repository isolation and readiness. Runtime database connectio
 and pool waits default to five seconds and are bounded by
 `PIPESOR_RAG_DATABASE_CONNECT_TIMEOUT_SECONDS` and
 `PIPESOR_RAG_DATABASE_POOL_TIMEOUT_SECONDS`.
+
+## Image publication and assurance
+
+Pull requests build and inspect the service image without registry credentials.
+Every push to `main` repeats the complete quality suite, builds one image and exports
+that verified artifact. Only after that job succeeds does a separate least-privilege
+job publish the exact artifact to the private package:
+
+```text
+ghcr.io/pipesor-org/pipesor-rag-retrieval:sha-<full-commit-sha>
+```
+
+The publication job resolves the registry digest, verifies that the package remains
+private and retains `<image>@sha256:<digest>` as delivery evidence. Consumers and
+deployments must use that digest, not a mutable tag. The manually dispatched
+`Promote release image` workflow accepts an existing digest and a `vX.Y.Z` tag,
+then attaches that tag without rebuilding and verifies that the digest is unchanged.
+
+CI produces CycloneDX SBOMs for Python dependencies and the complete container image,
+plus JSON vulnerability reports. `pip-audit` findings fail its dependency audit. The
+container policy blocks publication on every `CRITICAL` operating-system or
+language-package vulnerability and every `HIGH` vulnerability for which a fix is
+available. Unfixed `HIGH` findings and all `LOW`, `MEDIUM` and `UNKNOWN` findings
+remain in the complete report for risk review but do not block this increment. The
+runtime image removes `pip` after installation to avoid shipping its unused vendored
+build dependencies.
 
 Check affected links and consistency with the referenced sources, then run:
 

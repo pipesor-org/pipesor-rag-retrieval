@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  IMAGE_NAME: ghcr.io/pipesor-org/pipesor-rag-retrieval
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -59,8 +62,9 @@ jobs:
           docker build --provenance=false --build-arg "VCS_REF=${GITHUB_SHA}" --tag pipesor-rag-retrieval:quality .
           test "$(docker image inspect pipesor-rag-retrieval:quality --format '{{.Config.User}}')" = "10001:10001"
           test "$(docker image inspect pipesor-rag-retrieval:quality --format '{{json .Config.ExposedPorts}}')" = '{"8080/tcp":{}}'
-          docker run --rm --entrypoint python pipesor-rag-retrieval:quality -m pip freeze \
-            | grep -v '^pipesor-rag-retrieval==' > runtime-requirements.txt
+          docker run --rm --entrypoint python pipesor-rag-retrieval:quality \
+            -c "from importlib.metadata import distributions; print(*sorted(d.metadata['Name'] + '==' + d.version for d in distributions() if d.metadata['Name'] != 'pipesor-rag-retrieval'), sep='\n')" \
+            > runtime-requirements.txt
           docker run --rm --entrypoint alembic pipesor-rag-retrieval:quality upgrade head --sql > container-migration.sql
       - name: Validate graceful service termination
         run: |
@@ -78,17 +82,64 @@ jobs:
       - name: Generate SBOM and scan runtime dependencies
         run: |
           mkdir -p artifacts
-          docker image inspect pipesor-rag-retrieval:quality --format '{{.Id}}' > artifacts/image-digest.txt
           python -m pip_audit --requirement runtime-requirements.txt --format cyclonedx-json --output artifacts/python-sbom.cdx.json
           python -m pip_audit --requirement runtime-requirements.txt --format json --output artifacts/python-vulnerabilities.json
+      - name: Generate complete image SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: pipesor-rag-retrieval:quality
+          format: cyclonedx
+          output: artifacts/image-sbom.cdx.json
+          version: v0.76.2
+      - name: Record complete image vulnerability report
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: pipesor-rag-retrieval:quality
+          format: json
+          output: artifacts/image-vulnerabilities.json
+          scanners: vuln
+          version: v0.76.2
+      - name: Block every critical image vulnerability
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: pipesor-rag-retrieval:quality
+          format: table
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: false
+          exit-code: 1
+          version: v0.76.2
+      - name: Block fixable high image vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: pipesor-rag-retrieval:quality
+          format: table
+          scanners: vuln
+          severity: HIGH
+          ignore-unfixed: true
+          exit-code: 1
+          version: v0.76.2
+      - name: Export the verified image
+        if: github.event_name == 'push'
+        run: |
+          docker tag pipesor-rag-retrieval:quality "${IMAGE_NAME}:sha-${GITHUB_SHA}"
+          docker save --output artifacts/rag-image.tar "${IMAGE_NAME}:sha-${GITHUB_SHA}"
       - name: Upload image assurance evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: rag-image-assurance-${{ github.sha }}
-          path: artifacts
+          path: artifacts/*.json
           if-no-files-found: error
           retention-days: 14
+      - name: Upload verified image for publication
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: rag-verified-image-${{ github.sha }}
+          path: artifacts/rag-image.tar
+          if-no-files-found: error
+          retention-days: 1
       - name: Validate pull request title and body
         if: github.event_name == 'pull_request'
         env:
@@ -106,4 +157,51 @@ jobs:
         env:
           COMMIT_TITLE: ${{ github.event.head_commit.message }}
         run: python tools/validate_contribution.py --message-env COMMIT_TITLE
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download verified image
+        uses: actions/download-artifact@v8
+        with:
+          name: rag-verified-image-${{ github.sha }}
+          path: artifacts
+      - name: Load verified image
+        run: docker load --input artifacts/rag-image.tar
+      - name: Authenticate to GHCR
+        uses: docker/login-action@v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish immutable commit tag
+        run: docker push "${IMAGE_NAME}:sha-${GITHUB_SHA}"
+      - name: Resolve and record registry digest
+        shell: bash
+        run: |
+          # shellcheck disable=SC2016
+          digest="$(docker buildx imagetools inspect "${IMAGE_NAME}:sha-${GITHUB_SHA}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          test -n "$digest"
+          printf '%s@%s\n' "$IMAGE_NAME" "$digest" > published-image.txt
+          # shellcheck disable=SC2016
+          printf 'Published `%s@%s`\n' "$IMAGE_NAME" "$digest" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify private package visibility
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          visibility="$(gh api /orgs/pipesor-org/packages/container/pipesor-rag-retrieval --jq .visibility)"
+          test "$visibility" = private
+      - name: Upload published image identity
+        uses: actions/upload-artifact@v7
+        with:
+          name: rag-published-image-${{ github.sha }}
+          path: published-image.txt
+          if-no-files-found: error
+          retention-days: 90
 

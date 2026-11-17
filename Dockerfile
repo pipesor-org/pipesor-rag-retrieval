@@ -25,6 +25,7 @@ RUN apt-get update \
 
 COPY --from=builder /wheels /wheels
 RUN python -m pip install --no-index --find-links=/wheels pipesor-rag-retrieval==0.1.0 \
+    && python -m pip uninstall --yes pip \
     && rm -rf /wheels
 
 WORKDIR /app
