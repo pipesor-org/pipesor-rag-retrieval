@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from uuid import UUID
 
 from .domain import AuthorizationScope, CorpusKind, cosine_similarity
@@ -34,9 +35,11 @@ class RetrieveAuthorizedKnowledge:
         self._embeddings = embeddings
 
     def execute(self, query: RetrievalQuery) -> tuple[RetrievalMatch, ...]:
-        query_vector = self._embeddings.embed(query.query)
         matches: list[RetrievalMatch] = []
         try:
+            query_vector = self._embeddings.embed(query.query)
+            if len(query_vector) != self._embeddings.dimension or not all(map(isfinite, query_vector)):
+                raise ValueError("invalid query embedding")
             for chunk in self._repository.candidates(
                 query.scope,
                 query_vector,
