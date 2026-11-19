@@ -88,3 +88,16 @@ def test_rejects_incompatible_vectors() -> None:
     with pytest.raises(RetrievalUnavailable, match="unavailable"):
         service.execute(query(scope()))
 
+
+@pytest.mark.parametrize("failure", [ValueError("provider response"), (), (float("nan"),) * 1536])
+def test_embedding_failure_is_unavailable_even_with_empty_corpus(failure) -> None:
+    class InvalidEmbeddingProvider(DeterministicEmbeddingProvider):
+        def embed(self, text: str) -> tuple[float, ...]:
+            if isinstance(failure, ValueError):
+                raise failure
+            return failure
+
+    service = RetrieveAuthorizedKnowledge(InMemoryKnowledgeRepository(), InvalidEmbeddingProvider())
+
+    with pytest.raises(RetrievalUnavailable, match="unavailable"):
+        service.execute(query(scope()))
