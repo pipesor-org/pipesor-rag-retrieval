@@ -67,6 +67,14 @@ the `vector` extension first. Apply it only through an authorized migration path
 PIPESOR_RAG_DATABASE_URL='<approved Entra-compatible URL>' alembic upgrade head
 ```
 
+For the hosted runtime, use a password-free URL of the form
+`postgresql+psycopg://<entra-role>@<server>.postgres.database.azure.com/<database>`.
+The ACA system-assigned identity obtains a PostgreSQL Entra token for each new
+physical pooled connection. The runtime verifies the server hostname with the
+container's system trust store. Keep its SQL role read-only on `knowledge`.
+The separate migration and import commands still require their own approved
+Entra-authenticated connection and role.
+
 The approved embedding contract uses `text-embedding-3-small` with exactly 1536
 dimensions for documents and queries. PostgreSQL filters by authorization scope and
 compatible model version before using a cosine HNSW index. A model-version change
@@ -86,6 +94,28 @@ transient connection, timeout, throttling and server failures. The SDK retry lay
 disabled so only this adapter retries, and `Retry-After` is honored within the total
 budget. Endpoint, deployment, region and quota remain environment validation inputs;
 no Azure resource or role assignment is created by this repository.
+
+### DEV workload handoff
+
+Use the published private GHCR image by digest with internal ACA HTTPS ingress.
+The container listens on port 8080 and exposes `/health/live` and
+`/health/ready`. Azure private DNS must resolve the PostgreSQL server from the
+workload subnet. The runtime has no Service Bus dependency.
+
+| Source | Runtime settings |
+| --- | --- |
+| DEV environment | `PIPESOR_RAG_ENVIRONMENT=dev`, `PIPESOR_RAG_STORAGE_BACKEND=postgresql`, `PIPESOR_RAG_DATABASE_URL` |
+| Entra workload contract | `PIPESOR_RAG_AUTHENTICATION_MODE=entra`, `PIPESOR_RAG_ENTRA_TENANT_ID`, `PIPESOR_RAG_ENTRA_AUDIENCE`, `PIPESOR_RAG_ENTRA_RECOMMENDATION_CLIENT_ID` |
+| Foundry handoff | `PIPESOR_RAG_EMBEDDING_BACKEND=azure_openai`, `PIPESOR_RAG_AZURE_OPENAI_ENDPOINT`, `PIPESOR_RAG_AZURE_OPENAI_DEPLOYMENT`, `PIPESOR_RAG_EMBEDDING_MODEL_VERSION` |
+
+Before activation, the database operator enables `vector` and the separate
+migration role applies Alembic through head `20261116_03`. The authorized
+import role loads eligible knowledge with the same embedding model and version.
+Bind the RAG system identity to the read-only SQL role and grant it
+`Cognitive Services OpenAI User` on the Foundry account. Assign `Rag.Query`
+on the exclusive RAG audience to the Recommendation app identity. Confirm
+private GHCR pull credentials and verify readiness and an authenticated query
+from Recommendation in DEV after the target receives deployment authorization.
 
 ## Administrative corpus import
 
