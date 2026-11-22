@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from math import isfinite
 from uuid import UUID
 
-from .domain import AuthorizationScope, CorpusKind, cosine_similarity
+from .domain import AuthorizationScope, CorpusKind
 from .ports import EmbeddingProvider, KnowledgeRepository
 from .errors import RetrievalUnavailable
 
@@ -40,17 +40,19 @@ class RetrieveAuthorizedKnowledge:
             query_vector = self._embeddings.embed(query.query)
             if len(query_vector) != self._embeddings.dimension or not all(map(isfinite, query_vector)):
                 raise ValueError("invalid query embedding")
-            for chunk in self._repository.candidates(
+            for ranked in self._repository.search(
                 query.scope,
                 query_vector,
                 self._embeddings.model_name,
                 self._embeddings.model_version,
+                query.allowed_corpus_kinds,
+                query.top_k,
             ):
+                chunk = ranked.chunk
                 if not query.scope.permits(chunk.scope):
                     continue
                 if chunk.corpus_kind not in query.allowed_corpus_kinds:
                     continue
-                score = cosine_similarity(query_vector, chunk.embedding)
                 matches.append(
                     RetrievalMatch(
                         chunk_id=chunk.id,
@@ -59,13 +61,12 @@ class RetrieveAuthorizedKnowledge:
                         title=chunk.title,
                         content=chunk.content,
                         provenance=chunk.provenance,
-                        score=score,
+                        score=ranked.score,
                     )
                 )
         except Exception as error:
             raise RetrievalUnavailable("retrieval dependency unavailable") from error
-        matches.sort(key=lambda item: (-item.score, str(item.chunk_id)))
-        return tuple(matches[: query.top_k])
+        return tuple(matches)
 
     def ready(self) -> bool:
         try:

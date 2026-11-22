@@ -4,7 +4,7 @@ RAG Retrieval supplies authorized contextual knowledge to the recommendation ser
 
 The executable service provides a versioned internal retrieval API, explicit
 authorization scopes, provenance-preserving results, PostgreSQL/pgvector persistence,
-Microsoft Entra workload authentication, deterministic local adapters, an Azure
+platform workload JWT authentication (with Entra as an alternative), test-only deterministic
 OpenAI embedding adapter, tests, a non-root container and quality automation. Live
 cloud values, access grants, corpus authorization and deployment remain external
 activation requirements.
@@ -30,19 +30,19 @@ alembic upgrade head --sql
 python -m pipesor_rag_retrieval.main
 ```
 
-The service binds to `0.0.0.0:8080` by default. `PIPESOR_RAG_HOST` and
-`PIPESOR_RAG_PORT` override those values. Build and run the container with:
+The service uses `SERVER_ADDRESS` and `SERVER_PORT` from the runtime manifest
+(`127.0.0.1:8087` locally and `0.0.0.0:8080` in Azure). Build the container with:
 
 ```bash
 docker build --provenance=false --tag pipesor-rag-retrieval:local .
 docker run --rm --publish 8080:8080 pipesor-rag-retrieval:local
 ```
 
-The `X-Pipesor-Caller: recommendation_service` check is restricted to local/test.
-Non-local environments use single-tenant Microsoft Entra app-only access tokens with
-an exclusive RAG audience. RAG validates the RS256 signature against the tenant's
-published keys, issuer, audience, lifetime, tenant, `idtyp=app`, Recommendation's
-`azp` client ID and the `Rag.Query` application role; delegated tokens are rejected.
+Runtime requests use `Authorization: Bearer <token>`. Platform mode validates the
+Recommendation JWKS and exact `platform-identity-v1` claims: RS256, the canonical
+issuer/audience/tenant/workload identity, app token type, version 2.0, lifetime no
+greater than 300 seconds, no `scp`, and the sole `Rag.Query` role. Entra remains an
+explicit alternative. `X-Pipesor-Caller` exists only in automated tests.
 
 The internal endpoint is `POST /internal/v1/retrieval/query`. It accepts contract
 version `1.0`, a correlation ID, query, authorization scope, permitted corpus kinds
@@ -57,14 +57,15 @@ python tools/export_openapi.py
 python tools/export_openapi.py --check
 ```
 
-`PIPESOR_RAG_STORAGE_BACKEND=postgresql` selects the bounded PostgreSQL adapter
-and requires `PIPESOR_RAG_DATABASE_URL`; the value is treated as a secret and must
-not be logged. `PIPESOR_RAG_CANDIDATE_LIMIT` defaults to 1000. The Alembic migration
+Runtime selects PostgreSQL and requires `PIPESOR_DATABASE_URL`; the value is treated
+as a secret and must not be logged. Local mode also consumes
+`PIPESOR_DATABASE_USERNAME` and `PIPESOR_DATABASE_PASSWORD`; Azure uses managed
+identity. Memory storage is rejected outside automated tests. The Alembic migration
 owns only the `knowledge` schema and requires the database administrator to enable
 the `vector` extension first. Apply it only through an authorized migration path:
 
 ```bash
-PIPESOR_RAG_DATABASE_URL='<approved Entra-compatible URL>' alembic upgrade head
+PIPESOR_DATABASE_URL='<approved Entra-compatible URL>' alembic upgrade head
 ```
 
 For the hosted runtime, use a password-free URL of the form
@@ -76,8 +77,10 @@ The separate migration and import commands still require their own approved
 Entra-authenticated connection and role.
 
 The approved embedding contract uses `text-embedding-3-small` with exactly 1536
-dimensions for documents and queries. PostgreSQL filters by authorization scope and
-compatible model version before using a cosine HNSW index. A model-version change
+dimensions for documents and queries. PostgreSQL filters by authorization scope,
+corpus kind and model version, orders by cosine distance and applies `LIMIT top_k`
+in SQL. Each query sets `hnsw.ef_search` and `statement_timeout`; the distance is not
+recalculated in Python. A model-version change
 requires an explicit re-import/re-embedding migration; incompatible vectors are
 rejected rather than mixed.
 
@@ -104,8 +107,8 @@ workload subnet. The runtime has no Service Bus dependency.
 
 | Source | Runtime settings |
 | --- | --- |
-| DEV environment | `PIPESOR_RAG_ENVIRONMENT=dev`, `PIPESOR_RAG_STORAGE_BACKEND=postgresql`, `PIPESOR_RAG_DATABASE_URL` |
-| Entra workload contract | `PIPESOR_RAG_AUTHENTICATION_MODE=entra`, `PIPESOR_RAG_ENTRA_TENANT_ID`, `PIPESOR_RAG_ENTRA_AUDIENCE`, `PIPESOR_RAG_ENTRA_RECOMMENDATION_CLIENT_ID` |
+| Runtime | `PIPESOR_ENVIRONMENT=local|azure`, `SERVER_ADDRESS`, `SERVER_PORT`, `PIPESOR_DATABASE_URL`, and local database credentials |
+| Platform workload contract | `PIPESOR_RAG_AUTHENTICATION_MODE=platform`, `PIPESOR_TENANT_ID`, `PIPESOR_SECURITY_AUDIENCE`, and `PIPESOR_SECURITY_TRUSTEDWORKLOADS_0_*` |
 | Foundry handoff | `PIPESOR_RAG_EMBEDDING_BACKEND=azure_openai`, `PIPESOR_RAG_AZURE_OPENAI_ENDPOINT`, `PIPESOR_RAG_AZURE_OPENAI_DEPLOYMENT`, `PIPESOR_RAG_EMBEDDING_MODEL_VERSION` |
 
 Before activation, the database operator enables `vector` and the separate
@@ -125,27 +128,27 @@ an authorization reference, source ID/version and non-evaluation chunks. Run it 
 through an approved database access path:
 
 ```bash
-PIPESOR_RAG_STORAGE_BACKEND=postgresql \
-PIPESOR_RAG_DATABASE_URL='<approved Entra-compatible URL>' \
+PIPESOR_ENVIRONMENT=azure \
+PIPESOR_DATABASE_URL='<approved Entra-compatible URL>' \
 pipesor-rag-import authorized-document.json
 ```
 
 The same source version and canonical hash is idempotent. Reusing a version with
 different content fails; a new version deactivates the former active version.
-Local/test defaults remain deterministic simulations with the same 1536-dimension
-shape. Real corpus remains prohibited until its inventory, provenance, sanitization,
+Deterministic embeddings are test-only. Real corpus remains prohibited until its
+inventory, provenance, sanitization,
 scope and accountable authorization are recorded.
 
 ## Runtime safety
 
-`/health/live` reports process survival. `/health/ready` checks the selected
-knowledge repository and returns `503 not_ready` when PostgreSQL cannot answer.
+`/health/live` reports process survival. `/health/ready` checks PostgreSQL and that
+Alembic is at head `20261116_03`, returning `503 not_ready` on failure.
 Requests default to a 64 KiB limit (`PIPESOR_RAG_MAX_REQUEST_BYTES`). Operational
 logs are JSON and contain only route/method/status/duration and the opaque
 correlation header, never query or retrieved content.
 
-Authentication is fail-closed by environment. `simulated` is allowed only with
-`PIPESOR_RAG_ENVIRONMENT=local|test`; non-local startup rejects it. `entra` requires
+Authentication is fail-closed by environment. Test authentication is rejected in
+both `local` and `azure`; `entra` requires
 `PIPESOR_RAG_ENTRA_TENANT_ID`, `PIPESOR_RAG_ENTRA_AUDIENCE` and
 `PIPESOR_RAG_ENTRA_RECOMMENDATION_CLIENT_ID`. The required role is fixed to
 `Rag.Query`. IaC must create the app role/audience and assign it to Recommendation's
@@ -157,6 +160,10 @@ selection, tenant/repository isolation and readiness. Runtime database connectio
 and pool waits default to five seconds and are bounded by
 `PIPESOR_RAG_DATABASE_CONNECT_TIMEOUT_SECONDS` and
 `PIPESOR_RAG_DATABASE_POOL_TIMEOUT_SECONDS`.
+
+Two query controls are not yet named by the shared runtime manifest and must be
+added before deployment: `PIPESOR_RAG_DATABASE_STATEMENT_TIMEOUT_MS` (default
+`5000`) and `PIPESOR_RAG_HNSW_EF_SEARCH` (default `100`).
 
 ## Image publication and assurance
 

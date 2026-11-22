@@ -32,6 +32,13 @@ def build_postgresql_engine(settings: Settings) -> Engine:
     if settings.database_url is None:
         raise ValueError("database URL is required")
     url = make_url(settings.database_url.get_secret_value())
+    if settings.runtime_environment == "local":
+        if url.drivername != "postgresql+psycopg" or url.host not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("local PostgreSQL must use psycopg on loopback")
+        url = url.set(
+            username=settings.database_username,
+            password=settings.database_password.get_secret_value() if settings.database_password else None,
+        )
     connect_args: dict[str, str | int] = {"connect_timeout": settings.database_connect_timeout_seconds}
     hosted = settings.runtime_environment not in {"local", "test"}
     if hosted:
@@ -70,6 +77,10 @@ def build_retrieval_service(settings: Settings) -> RetrieveAuthorizedKnowledge:
         return RetrieveAuthorizedKnowledge(InMemoryKnowledgeRepository(), embeddings)
     engine = build_postgresql_engine(settings)
     sessions = sessionmaker(bind=engine, expire_on_commit=False)
-    repository = PostgreSQLKnowledgeRepository(sessions, settings.candidate_limit)
+    repository = PostgreSQLKnowledgeRepository(
+        sessions,
+        statement_timeout_ms=settings.database_statement_timeout_ms,
+        hnsw_ef_search=settings.hnsw_ef_search,
+    )
     return RetrieveAuthorizedKnowledge(repository, embeddings)
 

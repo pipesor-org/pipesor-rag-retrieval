@@ -257,8 +257,8 @@
       }
     },
     "securitySchemes": {
-      "EntraBearer": {
-        "description": "Single-tenant app-only token for the RAG audience with the Rag.Query role.",
+      "WorkloadBearer": {
+        "description": "Platform or Entra app-only token for the RAG audience with the Rag.Query role.",
         "scheme": "bearer",
         "type": "http"
       }
@@ -337,7 +337,7 @@
         },
         "security": [
           {
-            "EntraBearer": []
+            "WorkloadBearer": []
           }
         ],
         "summary": "Retrieve"

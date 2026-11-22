@@ -6,11 +6,10 @@ from pathlib import Path
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from .configuration import Settings
-from .bootstrap import build_embedding_provider
+from .bootstrap import build_embedding_provider, build_postgresql_engine
 from .corpus import CorpusImport, ImportAuthorizedCorpus
 from .domain import AuthorizationScope, CorpusKind
 from .persistence import PostgreSQLCorpusStore
@@ -43,7 +42,7 @@ def main() -> None:
     settings = Settings.from_environment()
     if settings.storage_backend != "postgresql" or settings.database_url is None:
         parser.error("PIPESOR_RAG_STORAGE_BACKEND=postgresql and PIPESOR_RAG_DATABASE_URL are required")
-    engine = create_engine(settings.database_url.get_secret_value(), pool_pre_ping=True)
+    engine = build_postgresql_engine(settings)
     store = PostgreSQLCorpusStore(sessionmaker(bind=engine, expire_on_commit=False))
     importer = ImportAuthorizedCorpus(store, build_embedding_provider(settings))
     request = CorpusImport(

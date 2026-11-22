@@ -9,6 +9,8 @@ from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import APIConnectionError, APITimeoutError, InternalServerError, OpenAI, RateLimitError
 
 from .domain import AuthorizationScope, KnowledgeChunk
+from .domain import CorpusKind, cosine_similarity
+from .ports import RankedKnowledgeChunk
 
 
 class DeterministicEmbeddingProvider:
@@ -110,14 +112,21 @@ class InMemoryKnowledgeRepository:
     def __init__(self, chunks: tuple[KnowledgeChunk, ...] = ()) -> None:
         self._chunks = chunks
 
-    def candidates(
+    def search(
         self,
         scope: AuthorizationScope,
         query_embedding: tuple[float, ...],
         embedding_model: str,
         embedding_model_version: str,
-    ) -> tuple[KnowledgeChunk, ...]:
-        return tuple(chunk for chunk in self._chunks if scope.permits(chunk.scope))
+        allowed_corpus_kinds: frozenset[CorpusKind],
+        top_k: int,
+    ) -> tuple[RankedKnowledgeChunk, ...]:
+        matches = [
+            RankedKnowledgeChunk(chunk, cosine_similarity(query_embedding, chunk.embedding))
+            for chunk in self._chunks
+            if scope.permits(chunk.scope) and chunk.corpus_kind in allowed_corpus_kinds
+        ]
+        return tuple(sorted(matches, key=lambda item: (-item.score, str(item.chunk.id)))[:top_k])
 
     def ready(self) -> bool:
         return True

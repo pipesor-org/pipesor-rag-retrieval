@@ -58,7 +58,9 @@ def client(with_match: bool = False) -> TestClient:
 def test_requires_internal_caller() -> None:
     response = client().post("/internal/v1/retrieval/query", json=payload())
     assert response.status_code == 403
-    assert response.json()["detail"] == "caller_not_authorized"
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json()["detail"] == "Caller is not authorized"
 
 
 def test_openapi_contract_documents_internal_security_without_runtime_endpoint() -> None:

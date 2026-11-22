@@ -17,17 +17,18 @@ PIPELINE = UUID("22222222-2222-4222-8222-222222222222")
 
 
 class Rows:
-    def __init__(self, values: list[tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord]]) -> None:
+    def __init__(self, values: list[tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord, float]]) -> None:
         self.values = values
 
-    def all(self) -> list[tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord]]:
+    def all(self) -> list[tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord, float]]:
         return self.values
 
 
 class FakeSession:
-    def __init__(self, values: list[tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord]]) -> None:
+    def __init__(self, values: list[tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord, float]]) -> None:
         self.values = values
         self.statement = None
+        self.statements = []
 
     def __enter__(self) -> FakeSession:
         return self
@@ -36,8 +37,9 @@ class FakeSession:
         return None
 
     def execute(self, statement: object) -> Rows:
+        self.statements.append(statement)
         self.statement = statement
-        return Rows(self.values)
+        return Rows([] if str(statement).startswith("SET LOCAL") else self.values)
 
 
 def records() -> tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord]:
@@ -76,25 +78,31 @@ def records() -> tuple[KnowledgeChunkRecord, KnowledgeDocumentRecord]:
 
 
 def test_repository_maps_authorized_rows_and_provenance() -> None:
-    fake = FakeSession([records()])
+    fake = FakeSession([(*records(), 0.25)])
     repository = PostgreSQLKnowledgeRepository(lambda: fake)
     scope = AuthorizationScope(TENANT, "20", "10", PIPELINE, "scope-1")
 
-    result = repository.candidates(
+    result = repository.search(
         scope,
         tuple(0.1 for _ in range(1536)),
         "text-embedding-3-small",
         "simulated-v1",
+        frozenset({CorpusKind.AUTHORIZED_TECHNICAL_DOCUMENTATION}),
+        5,
     )
 
-    assert result[0].provenance == "synthetic://runbook#0"
-    assert result[0].scope == scope
+    assert result[0].chunk.provenance == "synthetic://runbook#0"
+    assert result[0].chunk.scope == scope
+    assert result[0].score == 0.75
     compiled = fake.statement.compile(dialect=postgresql.dialect())
     assert "tenant_id" in str(compiled)
     assert "scope_revision" in str(compiled)
+    assert "ORDER BY" in str(compiled)
+    assert "LIMIT" in str(compiled)
+    assert any("hnsw.ef_search" in str(statement) for statement in fake.statements)
 
 
-def test_repository_requires_positive_candidate_limit() -> None:
-    with pytest.raises(ValueError, match="candidate_limit must be positive"):
-        PostgreSQLKnowledgeRepository(lambda: FakeSession([]), candidate_limit=0)
+def test_repository_requires_positive_query_controls() -> None:
+    with pytest.raises(ValueError, match="query controls"):
+        PostgreSQLKnowledgeRepository(lambda: FakeSession([]), hnsw_ef_search=0)
 

@@ -1,6 +1,7 @@
 import uvicorn
 import logging
 
+from .api import create_app
 from .configuration import Settings
 
 
@@ -8,7 +9,7 @@ def main() -> None:
     settings = Settings.from_environment()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     uvicorn.run(
-        "pipesor_rag_retrieval.api:app",
+        create_app(settings=settings),
         host=settings.host,
         port=settings.port,
         access_log=False,
