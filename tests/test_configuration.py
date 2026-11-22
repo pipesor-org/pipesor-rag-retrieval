@@ -23,9 +23,9 @@ def test_database_url_is_secret() -> None:
     assert "secret" not in repr(settings)
 
 
-def test_simulated_authentication_is_forbidden_outside_local_test() -> None:
-    with pytest.raises(ValidationError, match="simulated authentication"):
-        Settings(runtime_environment="dev")
+def test_test_backends_are_forbidden_outside_automated_tests() -> None:
+    with pytest.raises(ValidationError, match="runtime requires PostgreSQL"):
+        Settings(runtime_environment="local")
 
 
 def test_entra_mode_requires_all_canonical_identifiers() -> None:
@@ -36,7 +36,6 @@ def test_entra_mode_requires_all_canonical_identifiers() -> None:
 def test_entra_mode_accepts_complete_single_tenant_contract() -> None:
     settings = Settings(
         authentication_mode="entra",
-        runtime_environment="dev",
         entra_tenant_id="11111111-1111-4111-8111-111111111111",
         entra_audience="22222222-2222-4222-8222-222222222222",
         entra_recommendation_client_id="33333333-3333-4333-8333-333333333333",

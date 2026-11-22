@@ -7,7 +7,7 @@ import time
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
@@ -76,7 +76,9 @@ def create_app(
     authenticate: Callable[..., str] | None = None,
     settings: Settings | None = None,
 ) -> FastAPI:
-    settings = settings or Settings.from_environment()
+    # Runtime entrypoints always pass validated environment settings. The
+    # in-process default exists only for isolated automated tests.
+    settings = settings or Settings()
     retrieval = service or build_retrieval_service(settings)
     caller = authenticate or build_internal_caller(settings)
     app = FastAPI(
@@ -86,6 +88,24 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
+
+    @app.exception_handler(HTTPException)
+    async def problem_details(_request: Request, error: HTTPException) -> JSONResponse:
+        if error.status_code not in {401, 403}:
+            return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+        response = JSONResponse(
+            status_code=error.status_code,
+            media_type="application/problem+json",
+            content={
+                "type": "about:blank",
+                "title": "Unauthorized" if error.status_code == 401 else "Forbidden",
+                "status": error.status_code,
+                "detail": "Authentication is required" if error.status_code == 401 else "Caller is not authorized",
+            },
+            headers=error.headers,
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.middleware("http")
     async def operational_boundary(request: Request, call_next: Callable[..., object]):
@@ -163,7 +183,4 @@ def create_app(
         )
 
     return app
-
-
-app = create_app()
 

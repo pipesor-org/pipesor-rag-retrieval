@@ -9,13 +9,19 @@ from pipesor_rag_retrieval.configuration import Settings
 
 def hosted_settings(url: str) -> Settings:
     return Settings(
-        runtime_environment="dev",
+        runtime_environment="azure",
+        host="0.0.0.0",
+        port=8080,
         authentication_mode="entra",
         entra_tenant_id="11111111-1111-4111-8111-111111111111",
         entra_audience="22222222-2222-4222-8222-222222222222",
         entra_recommendation_client_id="33333333-3333-4333-8333-333333333333",
         storage_backend="postgresql",
         database_url=url,
+        embedding_backend="azure_openai",
+        azure_openai_endpoint="https://ai-pipesor-dev-04f339b7.services.ai.azure.com",
+        azure_openai_deployment="pipesor-dev-embeddings",
+        embedding_model_version="2026-11",
     )
 
 

@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol
 
 from .domain import AuthorizationScope, KnowledgeChunk
+
+
+@dataclass(frozen=True, slots=True)
+class RankedKnowledgeChunk:
+    chunk: KnowledgeChunk
+    score: float
 
 
 class EmbeddingProvider(Protocol):
@@ -14,13 +21,15 @@ class EmbeddingProvider(Protocol):
 
 
 class KnowledgeRepository(Protocol):
-    def candidates(
+    def search(
         self,
         scope: AuthorizationScope,
         query_embedding: tuple[float, ...],
         embedding_model: str,
         embedding_model_version: str,
-    ) -> tuple[KnowledgeChunk, ...]: ...
+        allowed_corpus_kinds: frozenset,
+        top_k: int,
+    ) -> tuple[RankedKnowledgeChunk, ...]: ...
 
     def ready(self) -> bool: ...
 

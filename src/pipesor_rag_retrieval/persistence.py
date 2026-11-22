@@ -5,12 +5,16 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from pgvector.sqlalchemy import VECTOR
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, select, text, update
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, or_, select, text, update
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from .domain import AuthorizationScope, CorpusKind, KnowledgeChunk
 from .corpus import ImportStatus, PreparedDocument
+from .ports import RankedKnowledgeChunk
+
+
+ALEMBIC_HEAD = "20261116_03"
 
 
 class Base(DeclarativeBase):
@@ -73,54 +77,73 @@ class KnowledgeChunkRecord(Base):
 
 
 class PostgreSQLKnowledgeRepository:
-    """Bounded, scope-first adapter used until a dimensioned vector index is approved."""
+    """Scope-first pgvector retrieval with database-side ranking and limits."""
 
-    def __init__(self, session_factory: Callable[[], Session], candidate_limit: int = 1000) -> None:
-        if candidate_limit < 1:
-            raise ValueError("candidate_limit must be positive")
+    def __init__(
+        self,
+        session_factory: Callable[[], Session],
+        statement_timeout_ms: int = 5000,
+        hnsw_ef_search: int = 100,
+    ) -> None:
+        if statement_timeout_ms < 100 or hnsw_ef_search < 1:
+            raise ValueError("database query controls must be positive")
         self._session_factory = session_factory
-        self._candidate_limit = candidate_limit
+        self._statement_timeout_ms = statement_timeout_ms
+        self._hnsw_ef_search = hnsw_ef_search
 
-    def candidates(
+    def search(
         self,
         scope: AuthorizationScope,
         query_embedding: tuple[float, ...],
         embedding_model: str,
         embedding_model_version: str,
-    ) -> tuple[KnowledgeChunk, ...]:
+        allowed_corpus_kinds: frozenset[CorpusKind],
+        top_k: int,
+    ) -> tuple[RankedKnowledgeChunk, ...]:
         if len(query_embedding) != 1536:
             raise ValueError("query embedding must contain 1536 dimensions")
+        if top_k < 1 or not allowed_corpus_kinds:
+            raise ValueError("search requires a positive limit and corpus kinds")
+        distance = KnowledgeChunkRecord.embedding.cosine_distance(list(query_embedding)).label("distance")
         statement = (
-            select(KnowledgeChunkRecord, KnowledgeDocumentRecord)
+            select(KnowledgeChunkRecord, KnowledgeDocumentRecord, distance)
             .join(KnowledgeDocumentRecord, KnowledgeDocumentRecord.id == KnowledgeChunkRecord.document_id)
             .where(
                 KnowledgeDocumentRecord.tenant_id == scope.tenant_id,
                 KnowledgeDocumentRecord.github_installation_id == scope.github_installation_id,
                 KnowledgeDocumentRecord.github_repository_id == scope.github_repository_id,
                 KnowledgeDocumentRecord.scope_revision == scope.scope_revision,
+                KnowledgeDocumentRecord.corpus_kind.in_(kind.value for kind in allowed_corpus_kinds),
                 KnowledgeDocumentRecord.active.is_(True),
                 KnowledgeChunkRecord.embedding.is_not(None),
                 KnowledgeChunkRecord.embedding_model == embedding_model,
                 KnowledgeChunkRecord.embedding_model_version == embedding_model_version,
             )
-            .order_by(
-                KnowledgeChunkRecord.embedding.cosine_distance(list(query_embedding)),
-                KnowledgeChunkRecord.id,
-            )
-            .limit(self._candidate_limit)
+            .order_by(distance, KnowledgeChunkRecord.id)
+            .limit(top_k)
         )
         statement = statement.where(
             KnowledgeDocumentRecord.pipeline_id.is_(None)
             if scope.pipeline_id is None
-            else KnowledgeDocumentRecord.pipeline_id == scope.pipeline_id
+            else or_(
+                KnowledgeDocumentRecord.pipeline_id.is_(None),
+                KnowledgeDocumentRecord.pipeline_id == scope.pipeline_id,
+            )
         )
         with self._session_factory() as session:
+            session.execute(text(f"SET LOCAL statement_timeout = {self._statement_timeout_ms}"))
+            session.execute(text(f"SET LOCAL hnsw.ef_search = {self._hnsw_ef_search}"))
             rows = session.execute(statement).all()
-        return tuple(self._to_domain(chunk, document) for chunk, document in rows)
+        return tuple(
+            RankedKnowledgeChunk(self._to_domain(chunk, document), 1.0 - float(distance_value))
+            for chunk, document, distance_value in rows
+        )
 
     def ready(self) -> bool:
         with self._session_factory() as session:
-            return session.scalar(select(1)) == 1
+            if session.scalar(select(1)) != 1:
+                return False
+            return session.scalar(text("SELECT version_num FROM alembic_version")) == ALEMBIC_HEAD
 
     @staticmethod
     def _to_domain(

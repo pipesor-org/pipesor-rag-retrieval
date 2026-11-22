@@ -51,8 +51,15 @@ def test_real_postgres_import_retrieval_isolation_and_replacement() -> None:
     assert importer.execute(document(allowed)) == ImportStatus.CREATED
     assert importer.execute(document(allowed)) == ImportStatus.UNCHANGED
     query_vector = embeddings.embed("Synthetic procedure")
-    assert repository.candidates(other_tenant, query_vector, embeddings.model_name, embeddings.model_version) == ()
-    assert repository.candidates(other_repository, query_vector, embeddings.model_name, embeddings.model_version) == ()
+    search_args = (
+        query_vector,
+        embeddings.model_name,
+        embeddings.model_version,
+        frozenset({CorpusKind.AUTHORIZED_RESPONSE_PROCEDURES}),
+        5,
+    )
+    assert repository.search(other_tenant, *search_args) == ()
+    assert repository.search(other_repository, *search_args) == ()
     query = RetrievalQuery(
         correlation_id="corr-integration",
         query="Synthetic procedure",
