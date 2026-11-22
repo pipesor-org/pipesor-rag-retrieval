@@ -68,7 +68,23 @@ jobs:
           docker run --rm --entrypoint alembic pipesor-rag-retrieval:quality upgrade head --sql > container-migration.sql
       - name: Validate graceful service termination
         run: |
-          container_id="$(docker run --detach --publish 18080:8080 pipesor-rag-retrieval:quality)"
+          container_id="$(docker run --detach --publish 18080:8080 \
+            --env PIPESOR_ENVIRONMENT=azure \
+            --env SERVER_ADDRESS=0.0.0.0 \
+            --env SERVER_PORT=8080 \
+            --env PIPESOR_RAG_STORAGE_BACKEND=postgresql \
+            --env PIPESOR_DATABASE_URL=postgresql+psycopg://rag@app.postgres.database.azure.com/pipesor \
+            --env PIPESOR_RAG_EMBEDDING_BACKEND=azure_openai \
+            --env PIPESOR_RAG_EMBEDDING_MODEL_VERSION=ci-smoke \
+            --env PIPESOR_RAG_AZURE_OPENAI_ENDPOINT=https://ai-pipesor-dev-04f339b7.services.ai.azure.com \
+            --env PIPESOR_RAG_AZURE_OPENAI_DEPLOYMENT=pipesor-dev-embeddings \
+            --env PIPESOR_RAG_AUTHENTICATION_MODE=platform \
+            --env PIPESOR_TENANT_ID=11111111-1111-4111-8111-111111111111 \
+            --env PIPESOR_SECURITY_AUDIENCE=urn:pipesor:api:rag \
+            --env PIPESOR_SECURITY_TRUSTEDWORKLOADS_0_ID=recommendation \
+            --env PIPESOR_SECURITY_TRUSTEDWORKLOADS_0_JWKSURI=https://recommendation.invalid/.well-known/jwks.json \
+            --env PIPESOR_SECURITY_TRUSTEDWORKLOADS_0_ROLES=Rag.Query \
+            pipesor-rag-retrieval:quality)"
           trap 'docker rm --force "$container_id" >/dev/null 2>&1 || true' EXIT
           for _ in {1..30}; do
             curl --fail --silent http://127.0.0.1:18080/health/live >/dev/null && break
