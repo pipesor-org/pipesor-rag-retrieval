@@ -51,7 +51,7 @@ jobs:
         run: alembic upgrade head --sql > migration.sql
       - name: Validate PostgreSQL and pgvector integration
         env:
-          PIPESOR_RAG_DATABASE_URL: postgresql+psycopg://pipesor:pipesor-test-only@localhost:5432/pipesor_rag
+          PIPESOR_DATABASE_URL: postgresql+psycopg://pipesor:pipesor-test-only@localhost:5432/pipesor_rag
           PIPESOR_RAG_TEST_DATABASE_URL: postgresql+psycopg://pipesor:pipesor-test-only@localhost:5432/pipesor_rag
         run: |
           python -c "import psycopg; connection=psycopg.connect('postgresql://pipesor:pipesor-test-only@localhost:5432/pipesor_rag'); connection.execute('CREATE EXTENSION IF NOT EXISTS vector'); connection.commit()"

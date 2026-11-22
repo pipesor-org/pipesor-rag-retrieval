@@ -5,6 +5,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import make_url
 
 from pipesor_rag_retrieval.persistence import Base
 
@@ -12,9 +13,16 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-database_url = os.environ.get("PIPESOR_RAG_DATABASE_URL")
+database_url = os.environ.get("PIPESOR_DATABASE_URL")
 if database_url:
-    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    url = make_url(database_url)
+    username = os.environ.get("PIPESOR_DATABASE_USERNAME")
+    password = os.environ.get("PIPESOR_DATABASE_PASSWORD")
+    if username or password:
+        url = url.set(username=username or url.username, password=password or url.password)
+    config.set_main_option(
+        "sqlalchemy.url", url.render_as_string(hide_password=False).replace("%", "%%")
+    )
 
 target_metadata = Base.metadata
 
