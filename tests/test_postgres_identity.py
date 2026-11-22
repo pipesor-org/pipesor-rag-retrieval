@@ -1,3 +1,4 @@
+import os
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -53,7 +54,8 @@ def test_new_physical_connections_obtain_managed_identity_tokens(monkeypatch) ->
         ]
         for call in connect.call_args_list:
             assert call.kwargs["sslmode"] == "verify-full"
-            assert call.kwargs["sslrootcert"] == "system"
+            assert call.kwargs["sslrootcert"] == bootstrap.trusted_ca_bundle()
+            assert os.path.isfile(call.kwargs["sslrootcert"])
             assert call.kwargs["host"] == "app.postgres.database.azure.com"
         assert [call.args for call in credential.get_token.call_args_list] == [
             ("https://ossrdbms-aad.database.windows.net/.default",),

@@ -29,6 +29,21 @@ def build_embedding_provider(settings: Settings) -> EmbeddingProvider:
     )
 
 
+SYSTEM_CA_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
+
+
+def trusted_ca_bundle() -> str:
+    """CA file for verify-full. psycopg's bundled libpq cannot resolve ``sslrootcert=system`` to the image's
+    Debian trust store (certificate verify failed in Azure), so the bundle is named explicitly."""
+    if os.path.isfile(SYSTEM_CA_BUNDLE):
+        return SYSTEM_CA_BUNDLE
+    try:
+        import certifi
+    except ImportError as error:
+        raise ValueError("A CA bundle is required to verify Azure PostgreSQL") from error
+    return certifi.where()
+
+
 def build_postgresql_engine(settings: Settings) -> Engine:
     if settings.database_url is None:
         raise ValueError("database URL is required")
@@ -50,7 +65,7 @@ def build_postgresql_engine(settings: Settings) -> Engine:
             or url.query
         ):
             raise ValueError("A password-free Azure PostgreSQL URL with no query parameters is required")
-        connect_args.update(sslmode="verify-full", sslrootcert="system", gssencmode="disable")
+        connect_args.update(sslmode="verify-full", sslrootcert=trusted_ca_bundle(), gssencmode="disable")
 
     engine = create_engine(
         url,
