@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 
 from azure.identity import ManagedIdentityCredential
@@ -60,7 +61,8 @@ def build_postgresql_engine(settings: Settings) -> Engine:
         connect_args=connect_args,
     )
     if hosted:
-        credential = ManagedIdentityCredential()
+        # A user-assigned identity must be named: ManagedIdentityCredential does not read AZURE_CLIENT_ID by itself.
+        credential = ManagedIdentityCredential(client_id=os.environ.get("AZURE_CLIENT_ID") or None)
 
         @event.listens_for(engine, "do_connect")
         def supply_postgresql_token(_dialect, _record, _args, parameters):

@@ -31,7 +31,9 @@ def test_new_physical_connections_obtain_managed_identity_tokens(monkeypatch) ->
         SimpleNamespace(token="first-synthetic-token"),
         SimpleNamespace(token="second-synthetic-token"),
     ]
-    monkeypatch.setattr(bootstrap, "ManagedIdentityCredential", lambda: credential)
+    requested = {}
+    monkeypatch.setenv("AZURE_CLIENT_ID", "66666666-6666-6666-6666-666666666666")
+    monkeypatch.setattr(bootstrap, "ManagedIdentityCredential", lambda **kwargs: requested.update(kwargs) or credential)
     engine = bootstrap.build_postgresql_engine(
         hosted_settings("postgresql+psycopg://rag@app.postgres.database.azure.com/pipesor")
     )
@@ -43,6 +45,8 @@ def test_new_physical_connections_obtain_managed_identity_tokens(monkeypatch) ->
         for _ in range(2):
             with pytest.raises(RuntimeError, match="stop before network"):
                 engine.connect()
+        # The user-assigned identity selected by the platform is passed explicitly.
+        assert requested == {"client_id": "66666666-6666-6666-6666-666666666666"}
         assert engine.url.password is None
         assert [call.kwargs["password"] for call in connect.call_args_list] == [
             "first-synthetic-token", "second-synthetic-token",
