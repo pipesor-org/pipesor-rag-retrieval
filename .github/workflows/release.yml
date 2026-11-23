@@ -1,0 +1,69 @@
+name: Release candidate (disabled)
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Original successful main CI run
+        required: false
+        type: string
+      candidate_run_attempt:
+        description: Original successful CI attempt
+        required: false
+        type: string
+      candidate_release:
+        description: Published RC/stable manifest instead of an expiring CI artifact
+        required: false
+        type: string
+      kind:
+        description: RC is optional; stable retains the preprod evidence gate
+        required: true
+        type: choice
+        options: [rc, stable]
+      version:
+        description: Explicit X.Y.Z target before 1.0; empty once the stable base is 1.x+
+        required: false
+        type: string
+      confirm_image:
+        description: Exact existing ghcr.io repository@sha256 digest
+        required: true
+        type: string
+      authorization_ref:
+        description: Repository issue/PR recording publication authorization
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Publication needs separate activation; no dispatch/variable can enable this source.
+    if: ${{ false && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      deployments: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pipesor-org/pipesor-ci/actions/release@7b037de869a7e0b192ad20cd5532cf7a036a164b # v1.0.0
+        with:
+          mode: publish
+          kind: ${{ inputs.kind }}
+          version: ${{ inputs.version }}
+          candidate-run-id: ${{ inputs.candidate_run_id }}
+          candidate-run-attempt: ${{ inputs.candidate_run_attempt }}
+          candidate-release: ${{ inputs.candidate_release }}
+          confirm-image: ${{ inputs.confirm_image }}
+          authorization-ref: ${{ inputs.authorization_ref }}
+          release-enabled: ${{ vars.RELEASE_ENABLED }}
+          github-token: ${{ github.token }}

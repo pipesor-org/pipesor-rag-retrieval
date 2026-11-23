@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    uses: pipesor-org/pipesor-ci/.github/workflows/service-ci.yml@7b037de869a7e0b192ad20cd5532cf7a036a164b # v1.0.0
+    permissions:
+      contents: read
+      packages: write
+    with:
+      pip-cache: true
+      verify-command: bash tools/ci_verify.sh
