@@ -165,31 +165,30 @@ Two query controls are not yet named by the shared runtime manifest and must be
 added before deployment: `PIPESOR_RAG_DATABASE_STATEMENT_TIMEOUT_MS` (default
 `5000`) and `PIPESOR_RAG_HNSW_EF_SEARCH` (default `100`).
 
-## Image publication and assurance
+## CI/CD and image assurance
 
-Pull requests build and inspect the service image without registry credentials.
-Every push to `main` repeats the complete quality suite, builds one image and exports
-that verified artifact. Only after that job succeeds does a separate least-privilege
-job publish the exact artifact to the private package:
+[CI](.github/workflows/ci.yml) calls the shared [`service-ci.yml`](https://github.com/pipesor-org/pipesor-ci#catalog)
+from [pipesor-ci](https://github.com/pipesor-org/pipesor-ci), pinned by commit SHA (Dependabot proposes updates):
 
-```text
-ghcr.io/pipesor-org/pipesor-rag-retrieval:sha-<full-commit-sha>
-```
+1. **Conventions**: canonical commitlint/Lefthook, PR title (at most 65 characters) and description, Conventional
+   Commits, actionlint and zizmor. Install the commit hook with `bun install --frozen-lockfile && bun run setup:hooks`.
+2. **Build**: [`tools/ci_verify.sh`](tools/ci_verify.sh) runs the unit suite, `compileall`, the committed OpenAPI
+   contract check, offline migration rendering and the PostgreSQL/pgvector integration suite against a disposable
+   container (run it locally with Docker the same way). The image is built once and
+   [`tools/check_image.py`](tools/check_image.py) verifies UID/GID `10001`, the single `8080/tcp` port, offline
+   migrations inside the image, liveness with platform authentication settings and a clean `SIGTERM` stop.
+3. **Image assurance**: Trivy records the complete image SBOM and vulnerability report (90-day evidence) and blocks
+   every `HIGH` or `CRITICAL` vulnerability with an available fix; unfixed findings stay in the report for risk
+   review. Reviewed exceptions belong in `.trivyignore.yaml`. The runtime image removes `pip` after installation to
+   avoid shipping its unused vendored build dependencies.
+4. **Publish** (pushes to `main` only): the exact tested archive is pushed to the private package as
+   `ghcr.io/pipesor-org/pipesor-rag-retrieval:sha-<commit>-<run>-<attempt>`, and `candidate.json` records the source
+   SHA, digest and CI run/attempt. Consumers and deployments use the digest, never a mutable tag.
 
-The publication job resolves the registry digest, verifies that the package remains
-private and retains `<image>@sha256:<digest>` as delivery evidence. Consumers and
-deployments must use that digest, not a mutable tag. The manually dispatched
-`Promote release image` workflow accepts an existing digest and a `vX.Y.Z` tag,
-then attaches that tag without rebuilding and verifies that the digest is unchanged.
-
-CI produces CycloneDX SBOMs for Python dependencies and the complete container image,
-plus JSON vulnerability reports. `pip-audit` findings fail its dependency audit. The
-container policy blocks publication on every `CRITICAL` operating-system or
-language-package vulnerability and every `HIGH` vulnerability for which a fix is
-available. Unfixed `HIGH` findings and all `LOW`, `MEDIUM` and `UNKNOWN` findings
-remain in the complete report for risk review but do not block this increment. The
-runtime image removes `pip` after installation to avoid shipping its unused vendored
-build dependencies.
+This repository does not deploy: the environment's Terraform root in
+[pipesor-iac](https://github.com/pipesor-org/pipesor-iac/blob/main/docs/dev-runtime-deployment.md) pins the image by
+digest. [Release candidate](.github/workflows/release.yml) is hard-disabled; when activated it names an existing
+digest `vX.Y.Z[-rc.N]` through a GitHub Release, without registry retagging or rebuilding.
 
 Check affected links and consistency with the referenced sources, then run:
 
